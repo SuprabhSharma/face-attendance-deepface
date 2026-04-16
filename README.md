@@ -1,237 +1,274 @@
-📄 Software Requirements Specification (SRS)
+# 📄 Software Requirements Specification (SRS)
 
-Face Recognition Attendance System
+## 🎯 Project Title
 
-⸻
+**Face Recognition Based Attendance System**
 
-1. Introduction
+---
 
-1.1 Purpose
+## 1. 📌 Introduction
 
-The purpose of this document is to describe the requirements of the Face Recognition Attendance System, a web-based application that uses computer vision and deep learning to automatically mark attendance based on facial recognition.
+### 1.1 Purpose
 
-The system eliminates the need for manual attendance and reduces proxy attendance using real-time face detection and recognition.
+This system automates attendance tracking using facial recognition. It allows trainers to manage student groups and record attendance, while students can view their attendance records.
 
-⸻
-
-1.2 Scope
+### 1.2 Scope
 
 The system will:
-	•	Capture face images using a webcam
-	•	Recognize registered faces using FaceNet embeddings
-	•	Automatically mark attendance
-	•	Store attendance records in a database
-	•	Provide a web interface for admin and users
 
-Technologies used:
-	•	Backend: Python (Flask)
-	•	Face Processing: OpenCV + FaceNet
-	•	Frontend: HTML, CSS, JavaScript
-	•	Database: PostgrSQL
+* Authenticate users (Trainer / Student)
+* Allow trainers to manage groups and students
+* Capture attendance using face recognition
+* Store timestamped attendance records
+* Provide dashboards for both roles
 
-⸻
+---
 
-1.3 Definitions & Abbreviations
+## 2. 👥 User Roles
 
-Term	Description
-OpenCV	Computer vision library for image processing
-FaceNet	Deep learning model for face embeddings
-Flask	Python web framework
-Embedding	Numerical representation of a face
-Admin	Person managing the system
-User	Person whose attendance is marked
+### 2.1 Trainer
 
+* Register / Login
+* Create and manage groups
+* Add/remove students
+* Capture attendance via face recognition
+* View attendance reports
 
-⸻
+### 2.2 Student
 
-2. Overall Description
+* Register / Login
+* View personal attendance history
 
-2.1 Product Perspective
+---
 
-This system is a standalone web application that uses:
-	•	Webcam for image input
-	•	Server for face recognition
-	•	Database for storing users and attendance
+## 3. ⚙️ Functional Requirements
 
-⸻
+### 3.1 Authentication
 
-2.2 Product Functions
-	•	User registration with face capture
-	•	Face detection from live video
-	•	Face recognition using FaceNet
-	•	Attendance marking
-	•	Attendance report generation
-	•	Admin dashboard
+* Users can sign up with:
 
-⸻
+  * Name
+  * Email
+  * Password
+  * Role (Trainer / Student)
 
-2.3 User Classes
+* Secure login system (JWT-based recommended)
 
-User Type	Description
-Admin	Registers users, views attendance
-Student/User	Gets attendance marked automatically
+---
 
+### 3.2 Group Management (Trainer)
 
-⸻
+* Create group
+* Add students via email
+* Remove students
+* Update group details
 
-2.4 Operating Environment
-	•	OS: Windows/Linux/Mac
-	•	Browser: Chrome/Edge/Firefox
-	•	Python 3.x
-	•	Webcam
+---
 
-⸻
+### 3.3 Face Registration
 
-2.5 Constraints
-	•	Requires stable lighting for better accuracy
-	•	Requires webcam
-	•	Face recognition depends on trained model
-	•	Internet only needed for deployment
+* Students upload face data (images or embeddings)
+* System stores face encodings
 
-⸻
+---
 
-3. Functional Requirements
+### 3.4 Attendance System
 
-3.1 User Registration
-	•	The system shall allow admin to register a new user
-	•	The system shall capture multiple face images
-	•	The system shall generate FaceNet embeddings
-	•	The system shall store user details
+* Trainer starts attendance session
 
-⸻
+* System uses webcam to:
 
-3.2 Face Detection
-	•	The system shall detect faces using OpenCV
-	•	The system shall crop face region
-	•	The system shall preprocess images
+  * Detect faces
+  * Match with stored encodings
 
-⸻
+* Mark:
 
-3.3 Face Recognition
-	•	The system shall compare face embeddings
-	•	The system shall recognize registered users
-	•	The system shall reject unknown faces
+  * Present (recognized faces)
+  * Absent (remaining students)
 
-⸻
+* Store:
 
-3.4 Attendance Marking
-	•	The system shall mark attendance automatically
-	•	The system shall record date and time
-	•	The system shall prevent duplicate entries
+  * Date
+  * Time
+  * Student ID
+  * Status
 
-⸻
+---
 
-3.5 Admin Dashboard
-	•	The system shall allow admin to view attendance
-	•	The system shall allow filtering by date/user
-	•	The system shall allow export of reports
+### 3.5 Dashboard
 
-⸻
+#### Trainer Dashboard
 
-4. Non-Functional Requirements
+* Create / manage groups
+* Start attendance
+* View reports
 
-4.1 Performance
-	•	Face recognition should take less than 2 seconds
-	•	System should handle multiple users
+#### Student Dashboard
 
-⸻
+* View attendance records
+* See present/absent stats
 
-4.2 Security
-	•	Only admin can register users
-	•	Attendance data shall be stored securely
-	•	Unknown faces shall not be marked
+---
 
-⸻
+## 4. 🚫 Non-Functional Requirements
 
-4.3 Usability
-	•	UI shall be simple and responsive
-	•	System shall be easy to use
+* **Performance:** Real-time face recognition (within 1–2 sec per frame)
+* **Security:** Password hashing (bcrypt), JWT auth
+* **Scalability:** Modular backend (Flask APIs)
+* **Usability:** Simple UI (React)
+* **Reliability:** Accurate face recognition
 
-⸻
+---
 
-4.4 Reliability
-	•	System shall work continuously without crash
-	•	Attendance data shall not be lost
+## 5. 🧱 System Architecture
 
-⸻
+* **Frontend:** React.js
+* **Backend:** Flask (Python)
+* **Face Recognition:**
 
-4.5 Maintainability
-	•	Code shall be modular
-	•	Model can be updated easily
+  * `face_recognition` library / OpenCV
+* **Database:** PostgreSQL
 
-⸻
+---
 
-5. System Architecture
+## 6. 🗄️ Database Design
 
-5.1 Architecture Overview
-	1.	Webcam captures image
-	2.	OpenCV detects face
-	3.	FaceNet extracts embeddings
-	4.	Flask backend processes request
-	5.	Database stores attendance
-	6.	Frontend displays result
+### 6.1 Users Table
 
-⸻
+```
+users (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100),
+  email VARCHAR(100) UNIQUE,
+  password TEXT,
+  role VARCHAR(10), -- trainer / student
+  created_at TIMESTAMP
+)
+```
 
-5.2 Modules
-	•	Face Capture Module
-	•	Face Recognition Module
-	•	Attendance Module
-	•	Database Module
-	•	Web Interface Module
+---
 
-⸻
+### 6.2 Groups Table
 
-6. Data Requirements
+```
+groups (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100),
+  trainer_id INTEGER REFERENCES users(id),
+  created_at TIMESTAMP
+)
+```
 
-6.1 Database Tables
+---
 
-User Table
-	•	user_id
-	•	name
-	•	face_embedding
+### 6.3 Group_Students Table
 
-Attendance Table
-	•	attendance_id
-	•	user_id
-	•	date
-	•	time
+```
+group_students (
+  id SERIAL PRIMARY KEY,
+  group_id INTEGER REFERENCES groups(id),
+  student_id INTEGER REFERENCES users(id)
+)
+```
 
-⸻
+---
 
-7. External Interface Requirements
+### 6.4 Face_Data Table
 
-7.1 User Interface
-	•	Login page
-	•	Registration page
-	•	Camera page
-	•	Attendance report page
+```
+face_data (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id),
+  encoding BYTEA, -- serialized face encoding
+  created_at TIMESTAMP
+)
+```
 
-⸻
+---
 
-7.2 Hardware Interface
-	•	Webcam
+### 6.5 Attendance Table
 
-⸻
+```
+attendance (
+  id SERIAL PRIMARY KEY,
+  group_id INTEGER REFERENCES groups(id),
+  student_id INTEGER REFERENCES users(id),
+  status VARCHAR(10), -- present / absent
+  timestamp TIMESTAMP
+)
+```
 
-7.3 Software Interface
-	•	Python
-	•	OpenCV
-	•	FaceNet
-	•	Flask
-	•	Browser
+---
 
-⸻
+### 6.6 Attendance_Sessions Table (optional but good)
 
-8. Future Enhancements
-	•	Cloud deployment
-	•	Mobile app integration
-	•	Mask detection
-	•	Emotion detection
-	•	Multi-camera support
+```
+attendance_sessions (
+  id SERIAL PRIMARY KEY,
+  group_id INTEGER,
+  started_at TIMESTAMP
+)
+```
 
-⸻
+---
 
-9. Conclusion
+## 7. 🔌 API Endpoints (High-Level)
 
-This system provides an automated and accurate attendance management solution using facial recognition. It reduces human error and prevents proxy attendance while ensuring fast and reliable performance.
+### Auth
+
+* POST `/register`
+* POST `/login`
+
+### Groups
+
+* POST `/groups`
+* GET `/groups`
+* PUT `/groups/:id`
+* DELETE `/groups/:id`
+
+### Students
+
+* POST `/groups/:id/add-student`
+* DELETE `/groups/:id/remove-student`
+
+### Face Recognition
+
+* POST `/upload-face`
+* POST `/recognize-face`
+
+### Attendance
+
+* POST `/attendance/start`
+* POST `/attendance/mark`
+* GET `/attendance/:studentId`
+
+---
+
+## 8. 🖥️ Frontend Modules (React)
+
+* Auth (Login / Signup)
+* Trainer Dashboard
+
+  * Group Management
+  * Attendance Screen (camera UI)
+* Student Dashboard
+
+  * Attendance history
+
+---
+
+## 9. 🔥 Key Challenges (Important for Interview)
+
+* Face encoding storage & matching
+* Real-time recognition performance
+* Handling false positives
+* Clean role-based access control
+
+---
+
+## 10. 🚀 Future Enhancements
+
+* Attendance analytics (graphs)
+* Mobile support
+* Live classroom monitoring
+* Multi-face detection optimization
