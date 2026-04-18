@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
 
 # Environments
 venv/
@@ -12,13 +13,23 @@ env/
 # Database
 database.db
 
-# OS generated files
+# Node
+node_modules/
+dist/
+
+# OS
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
+Thumbs.db
 
-# IDE/Editors
+# IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# Docker volumes
+pgdata/
