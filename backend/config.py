@@ -25,4 +25,4 @@ class Config:
     )
 
     # CORS
-    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "https://face-recognition-attendance-system-elm81p101.vercel.app").split(",")
+    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "https://face-recognition-attendance-system-tau.vercel.app,http://localhost:5173,http://localhost:3000").split(",")
