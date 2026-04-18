@@ -2,7 +2,7 @@
  * API client — centralised fetch wrapper with JWT injection.
  */
 
-const API_BASE = "https://face-attendance-backend-os6u.onrender.com/";
+const API_BASE = "https://face-attendance-backend-os6u.onrender.com";
 
 function getToken() {
   return localStorage.getItem("token");
