@@ -1,26 +1,40 @@
-# Dependencies
+# Virtual environments
 venv/
 env/
-node_modules/
+newenv/
+
+# Environment variables (secrets)
 .env
 
-# Cache
+# Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
-# Build
-dist/
+# Database
+*.db
 
-# DB
-database.db
+# Logs
+logs/
+*.log
 
-# OS
+# OS files
 .DS_Store
-._*
+.DS_Store?
+Thumbs.db
 
-# IDE
+# IDE files
 .vscode/
 .idea/
 
+# DeepFace model cache (VERY IMPORTANT)
+.deepface/
+
 # Git
 .git/
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
