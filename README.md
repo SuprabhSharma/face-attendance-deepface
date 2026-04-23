@@ -1,274 +1,242 @@
 # 📄 Software Requirements Specification (SRS)
 
-## 🎯 Project Title
-
-**Face Recognition Based Attendance System**
-
----
-
-## 1. 📌 Introduction
+## 1. Introduction
 
 ### 1.1 Purpose
 
-This system automates attendance tracking using facial recognition. It allows trainers to manage student groups and record attendance, while students can view their attendance records.
+The purpose of this system is to automate attendance management using face recognition technology. It eliminates manual attendance processes and prevents proxy attendance by verifying user identity through facial features.
+
+---
 
 ### 1.2 Scope
 
-The system will:
+The system provides:
 
-* Authenticate users (Trainer / Student)
-* Allow trainers to manage groups and students
-* Capture attendance using face recognition
-* Store timestamped attendance records
-* Provide dashboards for both roles
+* User registration and authentication
+* Face data capture and encoding
+* Real-time attendance marking using webcam
+* Admin dashboard for monitoring
+* Attendance report generation
+* Email notification support
 
----
-
-## 2. 👥 User Roles
-
-### 2.1 Trainer
-
-* Register / Login
-* Create and manage groups
-* Add/remove students
-* Capture attendance via face recognition
-* View attendance reports
-
-### 2.2 Student
-
-* Register / Login
-* View personal attendance history
+This is a web-based application built using Flask and computer vision libraries.
 
 ---
 
-## 3. ⚙️ Functional Requirements
+### 1.3 Definitions
 
-### 3.1 Authentication
-
-* Users can sign up with:
-
-  * Name
-  * Email
-  * Password
-  * Role (Trainer / Student)
-
-* Secure login system (JWT-based recommended)
+* **User**: Individual marking attendance
+* **Admin**: System manager with elevated privileges
+* **Face Encoding**: Numerical representation of facial features
+* **Attendance Record**: Stored entry of user presence with timestamp
 
 ---
 
-### 3.2 Group Management (Trainer)
+## 2. Overall Description
 
-* Create group
-* Add students via email
-* Remove students
-* Update group details
+### 2.1 Product Perspective
 
----
+The system is a full-stack web application integrating:
 
-### 3.3 Face Registration
-
-* Students upload face data (images or embeddings)
-* System stores face encodings
+* Frontend interface (HTML, CSS, JavaScript)
+* Backend server (Flask)
+* Face recognition engine (OpenCV, face_recognition)
+* Database system (SQLite - current, PostgreSQL - recommended)
 
 ---
 
-### 3.4 Attendance System
+### 2.2 System Architecture
 
-* Trainer starts attendance session
-
-* System uses webcam to:
-
-  * Detect faces
-  * Match with stored encodings
-
-* Mark:
-
-  * Present (recognized faces)
-  * Absent (remaining students)
-
-* Store:
-
-  * Date
-  * Time
-  * Student ID
-  * Status
+```
+User → Webcam Capture → Face Encoding → Match with Database → Mark Attendance → Store Record → Display Report
+```
 
 ---
 
-### 3.5 Dashboard
+### 2.3 User Classes
 
-#### Trainer Dashboard
+#### User
 
-* Create / manage groups
-* Start attendance
-* View reports
-
-#### Student Dashboard
-
+* Register and login
+* Capture facial data
+* Mark attendance
 * View attendance records
-* See present/absent stats
+
+#### Admin
+
+* Manage users
+* Monitor attendance
+* Generate reports
 
 ---
 
-## 4. 🚫 Non-Functional Requirements
+### 2.4 Operating Environment
 
-* **Performance:** Real-time face recognition (within 1–2 sec per frame)
-* **Security:** Password hashing (bcrypt), JWT auth
-* **Scalability:** Modular backend (Flask APIs)
-* **Usability:** Simple UI (React)
-* **Reliability:** Accurate face recognition
+* Web browser (Chrome recommended)
+* Backend server (Flask)
+* Deployment platforms (Docker, Render)
 
 ---
 
-## 5. 🧱 System Architecture
+## 3. Functional Requirements
 
-* **Frontend:** React.js
-* **Backend:** Flask (Python)
-* **Face Recognition:**
+### 3.1 Authentication System
 
-  * `face_recognition` library / OpenCV
-* **Database:** PostgreSQL
-
----
-
-## 6. 🗄️ Database Design
-
-### 6.1 Users Table
-
-```
-users (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(100),
-  email VARCHAR(100) UNIQUE,
-  password TEXT,
-  role VARCHAR(10), -- trainer / student
-  created_at TIMESTAMP
-)
-```
+* Users can register and login securely
+* Session management is maintained
+* Only authenticated users can access system features
 
 ---
 
-### 6.2 Groups Table
+### 3.2 Face Registration
 
-```
-groups (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(100),
-  trainer_id INTEGER REFERENCES users(id),
-  created_at TIMESTAMP
-)
-```
+* System captures user face via webcam
+* Generates face encoding
+* Stores encoding in database
 
 ---
 
-### 6.3 Group_Students Table
+### 3.3 Face Recognition Attendance
 
-```
-group_students (
-  id SERIAL PRIMARY KEY,
-  group_id INTEGER REFERENCES groups(id),
-  student_id INTEGER REFERENCES users(id)
-)
-```
+* Detects face in real-time
+* Matches with stored encodings
+* Marks attendance if matched
 
 ---
 
-### 6.4 Face_Data Table
+### 3.4 Attendance Management
 
-```
-face_data (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER REFERENCES users(id),
-  encoding BYTEA, -- serialized face encoding
-  created_at TIMESTAMP
-)
-```
+* Stores attendance with date and time
+* Prevents duplicate entries for the same day
 
 ---
 
-### 6.5 Attendance Table
+### 3.5 Admin Dashboard
 
-```
-attendance (
-  id SERIAL PRIMARY KEY,
-  group_id INTEGER REFERENCES groups(id),
-  student_id INTEGER REFERENCES users(id),
-  status VARCHAR(10), -- present / absent
-  timestamp TIMESTAMP
-)
-```
+* View all users
+* View attendance records
+* Filter/search data
 
 ---
 
-### 6.6 Attendance_Sessions Table (optional but good)
+### 3.6 Reporting System
 
-```
-attendance_sessions (
-  id SERIAL PRIMARY KEY,
-  group_id INTEGER,
-  started_at TIMESTAMP
-)
-```
+* Generate attendance reports
+* Display data in UI
+* (Future) Export functionality
 
 ---
 
-## 7. 🔌 API Endpoints (High-Level)
+### 3.7 Email Notification
 
-### Auth
-
-* POST `/register`
-* POST `/login`
-
-### Groups
-
-* POST `/groups`
-* GET `/groups`
-* PUT `/groups/:id`
-* DELETE `/groups/:id`
-
-### Students
-
-* POST `/groups/:id/add-student`
-* DELETE `/groups/:id/remove-student`
-
-### Face Recognition
-
-* POST `/upload-face`
-* POST `/recognize-face`
-
-### Attendance
-
-* POST `/attendance/start`
-* POST `/attendance/mark`
-* GET `/attendance/:studentId`
+* Send attendance reports via email
+* Scheduled notifications
 
 ---
 
-## 8. 🖥️ Frontend Modules (React)
+## 4. System Workflow
 
-* Auth (Login / Signup)
-* Trainer Dashboard
-
-  * Group Management
-  * Attendance Screen (camera UI)
-* Student Dashboard
-
-  * Attendance history
-
----
-
-## 9. 🔥 Key Challenges (Important for Interview)
-
-* Face encoding storage & matching
-* Real-time recognition performance
-* Handling false positives
-* Clean role-based access control
+1. User registers and captures face data
+2. User logs into the system
+3. User opens camera interface
+4. System detects and verifies face
+5. Attendance is marked automatically
+6. Data is stored in database
+7. Admin monitors via dashboard
 
 ---
 
-## 10. 🚀 Future Enhancements
+## 5. Data Requirements
 
-* Attendance analytics (graphs)
-* Mobile support
-* Live classroom monitoring
-* Multi-face detection optimization
+### Users Table
+
+* id
+* name
+* email
+* password
+
+### Face Encodings
+
+* user_id
+* encoding data
+
+### Attendance Table
+
+* user_id
+* date
+* time
+* status
+
+---
+
+## 6. Non-Functional Requirements
+
+### Security
+
+* Password hashing
+* Session-based authentication
+* (Future) JWT-based authentication
+
+---
+
+### Performance
+
+* Real-time face recognition
+* Efficient database operations
+
+---
+
+### Scalability
+
+* Current: SQLite (local use)
+* Future: PostgreSQL (production-ready)
+
+---
+
+### Usability
+
+* Simple and intuitive interface
+* Easy navigation
+
+---
+
+### Reliability
+
+* Accurate face detection
+* Error handling for failures
+
+---
+
+## 7. Limitations
+
+* Performance depends on lighting conditions
+* Webcam access may not work on all cloud platforms
+* SQLite is not suitable for large-scale deployment
+* No liveness detection (risk of spoofing)
+
+---
+
+## 8. Future Enhancements
+
+* JWT Authentication
+* Cloud-based face recognition
+* Mobile application support
+* Role-based access control
+* Liveness detection (anti-spoofing)
+* Advanced analytics dashboard
+
+---
+
+## 9. Module Mapping
+
+| Module           | File                      |
+| ---------------- | ------------------------- |
+| Authentication   | routes/auth.py            |
+| API              | routes/api.py             |
+| Views            | routes/views.py           |
+| Face Recognition | services/face_service.py  |
+| Email Service    | services/email_service.py |
+| Scheduler        | services/scheduler.py     |
+| Database         | models/db.py              |
+
+---

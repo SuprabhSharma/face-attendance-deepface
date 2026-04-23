@@ -1,35 +1,26 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.egg-info/
+# Virtual Environment
+newenv/
 
-# Environments
-venv/
-env/
+# Environment variables (secrets)
 .env
 
-# Database
-database.db
+# Python cache
+__pycache__/
+*.pyc
 
-# Node
-node_modules/
-dist/
+# Database files
+*.db
 
-# OS
+# Logs
+logs/
+*.log
+
+# OS files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
 Thumbs.db
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# DeepFace cache (important)
+.deepface/
 
-# Docker volumes
-pgdata/
+# VS Code (optional)
+.vscode/
