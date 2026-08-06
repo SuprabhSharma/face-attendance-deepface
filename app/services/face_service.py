@@ -15,12 +15,12 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────
-# MODEL CONFIG  (change only here if you ever switch)
+# MODEL CONFIG
 # SFace: 28MB, edge-optimised, raw L2 threshold ~10-13
 # ─────────────────────────────────────────────
 MODEL_NAME = "SFace"
 DEFAULT_MATCH_THRESHOLD = 12.0   # raw L2 distance — SFace same-person ≈ 0-10, different ≈ 13+
-DETECTOR_BACKEND = "opencv"      # fastest detector; good enough for webcam frames
+DETECTOR_BACKEND = "opencv"      # fastest detector
 
 
 def get_match_threshold():
@@ -39,9 +39,18 @@ def get_match_threshold():
     return val
 
 
+def _get_face_area(face_dict):
+    """Calculate bounding box area (w * h) for a face dictionary from DeepFace."""
+    region = face_dict.get("facial_area") or {}
+    w = region.get("w", 0)
+    h = region.get("h", 0)
+    return w * h
+
+
 def get_face_embedding(image):
     """
     Generate one SFace embedding from a cv2 image (BGR numpy array).
+    Selects the largest/primary face if background noise or false positives occur.
     Returns (embedding_ndarray, None) on success, or (None, error_str) on failure.
     """
     if image is None:
@@ -62,10 +71,20 @@ def get_face_embedding(image):
         if not result:
             return None, "No face detected. Look directly at the camera in good lighting."
 
-        if len(result) > 1:
-            return None, "Multiple faces detected. Please ensure only one face is visible."
+        # Filter out empty or zero-sized detection regions if any
+        valid_results = [r for r in result if r.get("embedding") is not None]
 
-        embedding = np.asarray(result[0]["embedding"], dtype=np.float32)
+        if not valid_results:
+            return None, "Could not extract face features. Please adjust lighting and try again."
+
+        # If OpenCV detector finds multiple boxes (e.g. main face + background false positive),
+        # select the largest face box (the primary person in front of the camera).
+        if len(valid_results) > 1:
+            valid_results.sort(key=_get_face_area, reverse=True)
+            logger.info("Multiple face candidates detected (%d). Selected primary face by size.", len(valid_results))
+
+        primary_face = valid_results[0]
+        embedding = np.asarray(primary_face["embedding"], dtype=np.float32)
 
         if embedding.size == 0:
             return None, "Empty face embedding — please try again."
