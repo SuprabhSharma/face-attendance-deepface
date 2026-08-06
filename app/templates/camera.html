@@ -291,8 +291,7 @@ function sendEmail(name, email, date, time) {
 
             } else if (data.status === 'duplicate') {
 
-                // 🔥 ADD THIS (IMPORTANT)
-                notifyError("Attendance already marked. You can mark again after 24 hours.");
+                notifyWarning(data.message || "Attendance already marked for today.");
 
             } else if (!data.found) {
 

@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 import traceback
 import logging
 import json
-from datetime import datetime, timezone, timedelta   # ✅ added timedelta
+from datetime import datetime, timezone, timedelta
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 logger = logging.getLogger('app')
@@ -15,7 +15,7 @@ from app.services.email_service import EmailService
 
 email_service = EmailService()
 
-# ✅ IST TIMEZONE (ADDED)
+# IST TIMEZONE
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
@@ -58,10 +58,11 @@ def register():
 
         user_data = get_user_by_id(current_user.id)
         if not user_data:
-            return jsonify({'success': False, 'message': 'User not found.'}), 404
+            return jsonify({'success': False, 'message': 'User account not found.'}), 404
 
-        # A user may update a poor enrollment capture, but cannot register a
-        # face that belongs to a different account.
+        full_name = user_data.get('full_name') or user_data.get('username')
+
+        # Check if this face already belongs to another registered account
         is_dup, dup_name = check_duplicate_face(embedding, exclude_user_id=current_user.id)
         if is_dup:
             return jsonify({'success': False, 'message': f'This face is already registered to {dup_name}.'}), 400
@@ -83,7 +84,7 @@ def register():
 
         return jsonify({
             'success': True,
-            'message': f"Face registered successfully for {user_data['full_name']}!"
+            'message': f"Face registered successfully for {full_name}!"
         })
 
     except Exception as e:
@@ -95,7 +96,6 @@ def register():
 @api_bp.route('/recognize-face', methods=['POST'])
 def recognize():
     try:
-        # 🔥 FIX: UTC → IST
         recognition_time = datetime.now(IST)
 
         base64_to_cv2, get_face_embedding, recognize_user_fn, check_duplicate_face, available = get_face_recognition_modules()
@@ -133,34 +133,34 @@ def recognize():
         if user_id:
             user_data = get_user_by_id(user_id)
             if not user_data:
-                return jsonify({'success': True, 'found': False, 'message': 'User data not found.'}), 200
+                return jsonify({'success': True, 'found': False, 'message': 'User account not found.'}), 200
 
+            display_name = user_data.get('full_name') or user_data.get('username')
             marked, status = mark_attendance(user_id, recognition_time)
 
             if marked:
-                logger.info(f"Attendance marked for user {user_data['username']}")
+                logger.info(f"Attendance marked for user: {display_name} ({user_data['username']})")
 
-                # ✅ IST formatted time
                 attendance_time = recognition_time.strftime('%Y-%m-%d %H:%M:%S')
 
                 return jsonify({
                     'success': True,
                     'found': True,
                     'user_id': user_id,
-                    'user_name': user_data['full_name'],
+                    'user_name': display_name,
                     'user_email': user_data['email'], 
                     'status': status,
                     'marked_at': attendance_time,
-                    'message': f"{user_data['full_name']} marked at {attendance_time} IST"
+                    'message': f"Welcome {display_name}! Attendance marked at {attendance_time} IST"
                 })      
             else:
                 return jsonify({
                     'success': True,
                     'found': True,
                     'user_id': user_id,
-                    'user_name': user_data['full_name'],
+                    'user_name': display_name,
                     'status': 'duplicate',
-                    'message': "Attendance already marked"
+                    'message': f"Attendance already marked for {display_name} today."
                 })
 
         return jsonify({
@@ -183,11 +183,11 @@ def attendance():
         records = get_attendance_by_user(current_user.id, limit=50)
         user_data = get_user_by_id(current_user.id)
 
-        display_name = user_data.get('full_name') if user_data else None
+        display_name = user_data.get('full_name') if user_data else current_user.username
 
         res = [{
             'date': r['date'],
-            'name': display_name,
+            'name': r.get('full_name') or display_name,
             'time': r['time_in'],
             'time_in': r['time_in'],
             'time_out': r.get('time_out'),
@@ -206,7 +206,7 @@ def attendance():
 def get_users():
     try:
         users = get_all_users()
-        res = [{'id': u['id'], 'name': u.get('full_name', u.get('name'))} for u in users]
+        res = [{'id': u['id'], 'name': u.get('full_name') or u.get('username')} for u in users]
         return jsonify({'success': True, 'data': res})
     except Exception as e:
         logger.error(f"Error retrieving users: {str(e)}")
