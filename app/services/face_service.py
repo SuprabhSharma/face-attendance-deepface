@@ -55,6 +55,8 @@ def _get_face_area(face_dict):
     return w * h
 
 
+import cv2
+
 def get_face_embedding(image):
     """
     Generate one SFace embedding from a cv2 image (BGR numpy array).
@@ -65,6 +67,10 @@ def get_face_embedding(image):
         return None, "Image not loaded."
 
     try:
+        # Guarantee fast server-side processing by resizing large frames to 320x240 max
+        h, w = image.shape[:2]
+        if w > 320 or h > 240:
+            image = cv2.resize(image, (320, int(h * (320 / w))))
         result = DeepFace.represent(
             img_path=image,
             model_name=MODEL_NAME,

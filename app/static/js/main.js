@@ -97,15 +97,30 @@ function captureBase64(videoElementId, canvasElementId) {
         throw new Error('Camera is still loading. Please wait a moment and try again.');
     }
     
-    // Setup canvas size to match video
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    // Downscale canvas size for fast network transfer & ultra-fast AI inference
+    const MAX_WIDTH = 480;
+    const MAX_HEIGHT = 360;
     
-    // Draw current frame
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    let w = video.videoWidth || 640;
+    let h = video.videoHeight || 480;
     
-    // Get base64 (JPEG for smaller file size)
-    return canvas.toDataURL('image/jpeg', 0.85);
+    if (w > MAX_WIDTH) {
+        h = Math.round((h * MAX_WIDTH) / w);
+        w = MAX_WIDTH;
+    }
+    if (h > MAX_HEIGHT) {
+        w = Math.round((w * MAX_HEIGHT) / h);
+        h = MAX_HEIGHT;
+    }
+
+    canvas.width = w;
+    canvas.height = h;
+    
+    // Draw scaled frame
+    context.drawImage(video, 0, 0, w, h);
+    
+    // Convert to compressed JPEG (0.75 quality = ~30KB instead of 1.5MB!)
+    return canvas.toDataURL('image/jpeg', 0.75);
 }
 
 /**
