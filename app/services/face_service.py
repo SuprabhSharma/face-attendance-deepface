@@ -22,6 +22,14 @@ MODEL_NAME = "SFace"
 DEFAULT_MATCH_THRESHOLD = 12.0   # raw L2 distance — SFace same-person ≈ 0-10, different ≈ 13+
 DETECTOR_BACKEND = "opencv"      # fastest detector
 
+# Preload SFace model on module load to prevent cold-start API timeouts
+try:
+    logger.info("Preloading SFace model into memory...")
+    DeepFace.build_model(MODEL_NAME)
+    logger.info("SFace model preloaded successfully.")
+except Exception as _preload_err:
+    logger.warning("Could not preload SFace model: %s", _preload_err)
+
 
 def get_match_threshold():
     """Read threshold from env (FACE_RECOGNITION_THRESHOLD) with safe fallback."""
@@ -50,7 +58,7 @@ def _get_face_area(face_dict):
 def get_face_embedding(image):
     """
     Generate one SFace embedding from a cv2 image (BGR numpy array).
-    Selects the largest/primary face if background noise or false positives occur.
+    Selects the largest/primary face if background noise occurs.
     Returns (embedding_ndarray, None) on success, or (None, error_str) on failure.
     """
     if image is None:
@@ -60,25 +68,21 @@ def get_face_embedding(image):
         result = DeepFace.represent(
             img_path=image,
             model_name=MODEL_NAME,
-            enforce_detection=False,   # don't crash on imperfect lighting / angle
+            enforce_detection=False,
             detector_backend=DETECTOR_BACKEND,
         )
 
-        # DeepFace may return a dict or a list
         if isinstance(result, dict):
             result = [result]
 
         if not result:
             return None, "No face detected. Look directly at the camera in good lighting."
 
-        # Filter out empty or zero-sized detection regions if any
         valid_results = [r for r in result if r.get("embedding") is not None]
 
         if not valid_results:
             return None, "Could not extract face features. Please adjust lighting and try again."
 
-        # If OpenCV detector finds multiple boxes (e.g. main face + background false positive),
-        # select the largest face box (the primary person in front of the camera).
         if len(valid_results) > 1:
             valid_results.sort(key=_get_face_area, reverse=True)
             logger.info("Multiple face candidates detected (%d). Selected primary face by size.", len(valid_results))
@@ -110,7 +114,7 @@ def recognize_user(embedding, threshold=None, exclude_user_id=None):
 
     try:
         for user in get_all_users():
-            if user.get("id") == exclude_user_id:
+            if exclude_user_id is not None and user.get("id") == exclude_user_id:
                 continue
             if not user.get("embedding"):
                 continue
@@ -147,6 +151,8 @@ def recognize_user(embedding, threshold=None, exclude_user_id=None):
 
 
 def check_duplicate_face(embedding, threshold=None, exclude_user_id=None):
-    """Return (True, name) if this face belongs to a different enrolled user."""
-    user_id, name = recognize_user(embedding, threshold, exclude_user_id)
-    return (user_id is not None), name
+    """Return (True, user_id, name) if this face matches an enrolled user."""
+    matched_user_id, name = recognize_user(embedding, threshold, exclude_user_id)
+    if matched_user_id is not None:
+        return True, matched_user_id, name
+    return False, None, None

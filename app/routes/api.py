@@ -37,7 +37,7 @@ def register():
         base64_to_cv2, get_face_embedding, recognize_user_fn, check_duplicate_face, available = get_face_recognition_modules()
 
         if not available:
-            return jsonify({'success': False, 'message': 'Face recognition not available yet. Please try again later.'}), 503
+            return jsonify({'success': False, 'message': 'Face recognition module is initializing. Please try again in a few seconds.'}), 503
 
         data = request.get_json(silent=True)
         if not data:
@@ -52,21 +52,38 @@ def register():
         if img is None:
             return jsonify({'success': False, 'message': 'Invalid image format.'}), 400
 
-        embedding, err = get_face_embedding(img)
-        if err:
-            return jsonify({'success': False, 'message': err}), 400
-
         user_data = get_user_by_id(current_user.id)
         if not user_data:
             return jsonify({'success': False, 'message': 'User account not found.'}), 404
 
         full_name = user_data.get('full_name') or user_data.get('username')
 
-        # Check if this face already belongs to another registered account
-        is_dup, dup_name = check_duplicate_face(embedding, exclude_user_id=current_user.id)
-        if is_dup:
-            return jsonify({'success': False, 'message': f'This face is already registered to {dup_name}.'}), 400
+        # 1. Check if current user ALREADY has a face registered in their account
+        if user_data.get('embedding'):
+            return jsonify({
+                'success': False,
+                'message': f'Face is already registered for {full_name}.'
+            }), 400
 
+        embedding, err = get_face_embedding(img)
+        if err:
+            return jsonify({'success': False, 'message': err}), 400
+
+        # 2. Check if this captured face matches ANY existing registered account
+        is_dup, dup_user_id, dup_name = check_duplicate_face(embedding)
+        if is_dup:
+            if dup_user_id == current_user.id:
+                return jsonify({
+                    'success': False,
+                    'message': f'Face is already registered for {full_name}.'
+                }), 400
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': f'This face is already registered to {dup_name}.'
+                }), 400
+
+        # Save embedding to user account
         try:
             from app.models.db import get_db_connection
             conn = get_db_connection()
@@ -101,7 +118,7 @@ def recognize():
         base64_to_cv2, get_face_embedding, recognize_user_fn, check_duplicate_face, available = get_face_recognition_modules()
 
         if not available:
-            return jsonify({'success': False, 'message': 'Face recognition not available. Please contact administrator.'}), 503
+            return jsonify({'success': False, 'message': 'Face recognition service initializing. Please try again.'}), 503
 
         data = request.get_json(silent=True)
         if not data:
