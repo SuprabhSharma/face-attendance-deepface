@@ -26,7 +26,7 @@ RUN pip install --upgrade pip setuptools wheel && \
 
 # Download the exact recognition model used by the application during build,
 # not during a user's first registration or attendance scan.
-RUN python -c "from deepface import DeepFace; DeepFace.build_model('Facenet')"
+RUN python -c "from deepface import DeepFace; DeepFace.build_model('SFace')"
 
 # Copy full project
 COPY . .
