@@ -78,6 +78,18 @@ def create_app():
     app.register_blueprint(auth_bp)
 
     # ==============================
+    # 🤖 PRELOAD FACE MODEL AT STARTUP
+    # Importing face_service here triggers DeepFace.build_model('SFace')
+    # at server boot time so the first user request is instant.
+    # ==============================
+    with app.app_context():
+        try:
+            import app.services.face_service  # noqa: F401 — side-effect: preloads SFace
+            logging.info("SFace face recognition model loaded at startup.")
+        except Exception as e:
+            logging.warning(f"Face model preload skipped: {e}")
+
+    # ==============================
     # ⏰ SCHEDULER (FIXED)
     # ==============================
     if os.getenv('SCHEDULER_ENABLED', 'true').lower() == 'true':

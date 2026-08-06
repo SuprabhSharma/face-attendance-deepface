@@ -105,7 +105,7 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        width: 65%;
+        width: 52%;
         aspect-ratio: 1 / 1;
         pointer-events: none;
         z-index: 10;
@@ -169,7 +169,7 @@
     document.getElementById('captureBtn').addEventListener('click', async () => {
         const btn = document.getElementById('captureBtn');
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        const timeoutId = setTimeout(() => controller.abort(), 90000);
         let base64Img = null;
         
         btn.disabled = true;

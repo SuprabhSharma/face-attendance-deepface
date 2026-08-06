@@ -12,6 +12,8 @@ from app.models.db import (
     get_user_by_id, get_attendance_by_user, mark_attendance, get_all_users
 )
 from app.services.email_service import EmailService
+from app.utils.helpers import base64_to_cv2
+from app.services.face_service import get_face_embedding, recognize_user as recognize_user_fn, check_duplicate_face
 
 email_service = EmailService()
 
@@ -19,32 +21,17 @@ email_service = EmailService()
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
-def get_face_recognition_modules():
-    try:
-        from app.utils.helpers import base64_to_cv2
-        from app.services.face_service import get_face_embedding, recognize_user, check_duplicate_face
-        return (base64_to_cv2, get_face_embedding, recognize_user, check_duplicate_face, True)
-    except BaseException as e:
-        logger.warning(f"Face recognition not available: {e}")
-        return (None, None, None, None, False)
-
-
 @api_bp.route('/register-user', methods=['POST'])
 @login_required
 def register():
     try:
         logger.info(f"Face registration request started for user_id={current_user.id}")
-        base64_to_cv2, get_face_embedding, recognize_user_fn, check_duplicate_face, available = get_face_recognition_modules()
-
-        if not available:
-            return jsonify({'success': False, 'message': 'Face recognition module is initializing. Please try again in a few seconds.'}), 503
 
         data = request.get_json(silent=True)
         if not data:
             return jsonify({'success': False, 'message': 'Invalid data provided.'}), 400
 
         image_b64 = data.get('image', '')
-
         if not image_b64:
             return jsonify({'success': False, 'message': 'Image is required.'}), 400
 
@@ -58,7 +45,7 @@ def register():
 
         full_name = user_data.get('full_name') or user_data.get('username')
 
-        # 1. Check if current user ALREADY has a face registered in their account
+        # Block re-registration if user already has a face saved
         if user_data.get('embedding'):
             return jsonify({
                 'success': False,
@@ -69,19 +56,13 @@ def register():
         if err:
             return jsonify({'success': False, 'message': err}), 400
 
-        # 2. Check if this captured face matches ANY existing registered account
+        # Check if this face belongs to any other registered account
         is_dup, dup_user_id, dup_name = check_duplicate_face(embedding)
         if is_dup:
             if dup_user_id == current_user.id:
-                return jsonify({
-                    'success': False,
-                    'message': f'Face is already registered for {full_name}.'
-                }), 400
+                return jsonify({'success': False, 'message': f'Face is already registered for {full_name}.'}), 400
             else:
-                return jsonify({
-                    'success': False,
-                    'message': f'This face is already registered to {dup_name}.'
-                }), 400
+                return jsonify({'success': False, 'message': f'This face is already registered to {dup_name}.'}), 400
 
         # Save embedding to user account
         try:
@@ -115,17 +96,11 @@ def recognize():
     try:
         recognition_time = datetime.now(IST)
 
-        base64_to_cv2, get_face_embedding, recognize_user_fn, check_duplicate_face, available = get_face_recognition_modules()
-
-        if not available:
-            return jsonify({'success': False, 'message': 'Face recognition service initializing. Please try again.'}), 503
-
         data = request.get_json(silent=True)
         if not data:
             return jsonify({'success': False, 'message': 'Invalid data provided.'}), 400
 
         image_b64 = data.get('image', '')
-
         if not image_b64:
             return jsonify({'success': False, 'message': 'Image is required.'}), 400
 
