@@ -56,13 +56,15 @@ def register():
         if err:
             return jsonify({'success': False, 'message': err}), 400
 
-        is_dup, dup_name = check_duplicate_face(embedding)
-        if is_dup:
-            return jsonify({'success': False, 'message': f'This face is already registered to {dup_name}.'}), 400
-
         user_data = get_user_by_id(current_user.id)
         if not user_data:
             return jsonify({'success': False, 'message': 'User not found.'}), 404
+
+        # A user may update a poor enrollment capture, but cannot register a
+        # face that belongs to a different account.
+        is_dup, dup_name = check_duplicate_face(embedding, exclude_user_id=current_user.id)
+        if is_dup:
+            return jsonify({'success': False, 'message': f'This face is already registered to {dup_name}.'}), 400
 
         try:
             from app.models.db import get_db_connection
@@ -118,6 +120,14 @@ def recognize():
         if err:
             return jsonify({'success': False, 'message': err}), 400
 
+        if not any(user.get('embedding') for user in get_all_users()):
+            return jsonify({
+                'success': True,
+                'found': False,
+                'code': 'no_registered_faces',
+                'message': 'No faces are registered yet. Please register a face before marking attendance.'
+            })
+
         user_id, name = recognize_user_fn(embedding)
 
         if user_id:
@@ -153,7 +163,12 @@ def recognize():
                     'message': "Attendance already marked"
                 })
 
-        return jsonify({'success': True, 'found': False, 'message': 'Unknown face'})
+        return jsonify({
+            'success': True,
+            'found': False,
+            'code': 'face_not_recognized',
+            'message': 'Face not recognized. Look directly at the camera in good lighting and try again.'
+        })
 
     except Exception as e:
         logger.error(f"Error in face recognition: {str(e)}")

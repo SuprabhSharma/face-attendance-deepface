@@ -7,9 +7,11 @@ from hashlib import pbkdf2_hmac
 # ✅ IST TIMEZONE (ADD THIS)
 IST = timezone(timedelta(hours=5, minutes=30))
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'attendance_system.db')
+_DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'attendance_system.db')
+DB_PATH = os.path.abspath(os.getenv('DB_PATH', _DEFAULT_DB_PATH))
 
 def get_db_connection():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
@@ -160,7 +162,7 @@ def init_db():
     
     conn.commit()
     conn.close()
-    print("✅ Database initialized successfully")
+    print("Database initialized successfully")
 
 # ============================================
 # USER MANAGEMENT

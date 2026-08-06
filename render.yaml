@@ -1,10 +1,23 @@
 services:
   - type: web
     name: face-attendance
-    env: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn run:app --timeout 120
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    disk:
+      name: attendance-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.10.13
+      - key: FLASK_ENV
+        value: production
+      - key: DB_PATH
+        value: /var/data/attendance_system.db
+      - key: FACE_RECOGNITION_THRESHOLD
+        value: "0.80"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false

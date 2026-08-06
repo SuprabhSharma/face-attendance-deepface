@@ -1,91 +1,108 @@
-import cv2
-import numpy as np
+"""Face embedding and matching helpers used by registration and attendance."""
+
 import json
-from app.models.db import get_all_users
 import logging
-from deepface import DeepFace
 import os
+
+import numpy as np
+from deepface import DeepFace
+
+from app.models.db import get_all_users
 
 logger = logging.getLogger(__name__)
 
-# 🔥 reduce tensorflow logs
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-
-# 🔥 preload model (important for speed)
-DeepFace.build_model("SFace")
+MODEL_NAME = "Facenet"
+DEFAULT_MATCH_THRESHOLD = 0.80
 
 
-def get_face_embedding(img):
+def get_match_threshold():
+    """Get the L2 threshold for normalized FaceNet embeddings."""
+    raw_value = os.getenv("FACE_RECOGNITION_THRESHOLD", str(DEFAULT_MATCH_THRESHOLD))
     try:
-        # ⚡ resize with better ratio (more stable than 320x240)
-        img = cv2.resize(img, (224, 224))
+        threshold = float(raw_value)
+    except (TypeError, ValueError):
+        logger.warning("Invalid FACE_RECOGNITION_THRESHOLD; using %.2f", DEFAULT_MATCH_THRESHOLD)
+        return DEFAULT_MATCH_THRESHOLD
 
-        # 🔥 get embedding
+    if not 0 < threshold <= 2:
+        logger.warning("FACE_RECOGNITION_THRESHOLD must be between 0 and 2; using %.2f", DEFAULT_MATCH_THRESHOLD)
+        return DEFAULT_MATCH_THRESHOLD
+
+    return threshold
+
+
+def get_face_embedding(image):
+    """Create one normalized FaceNet embedding from an image containing one face."""
+    try:
+        if image is None:
+            return None, "Image not loaded"
+
         result = DeepFace.represent(
-            img_path=img,
-            model_name="SFace",
-            enforce_detection=False,
-            detector_backend="opencv"  # faster + stable
+            img_path=image,
+            model_name=MODEL_NAME,
+            enforce_detection=True,
+            detector_backend="opencv",
         )
+        if isinstance(result, dict):
+            result = [result]
 
-        # ❌ no face
-        if not result or len(result) == 0:
-            return None, "No face detected. Ensure proper lighting."
+        if not result:
+            return None, "No face detected. Look directly at the camera and try again."
+        if len(result) != 1:
+            return None, "Exactly one face must be visible."
 
-        # ❌ multiple faces
-        if len(result) > 1:
-            return None, "Multiple faces detected. Only one face allowed."
+        embedding = np.asarray(result[0]["embedding"], dtype=np.float32)
+        norm = np.linalg.norm(embedding)
+        if norm == 0:
+            return None, "Invalid face embedding"
 
-        embedding = np.array(result[0]["embedding"])
-        return embedding, None
-
-    except Exception as e:
-        logger.error(f"Embedding error: {str(e)}")
-        return None, str(e)
+        return embedding / norm, None
+    except Exception as error:
+        logger.exception("Could not create face embedding")
+        return None, "Could not process this face. Ensure good lighting and try again."
 
 
-def recognize_user(embedding, threshold=13):
+def recognize_user(embedding, threshold=None, exclude_user_id=None):
+    """Return the closest enrolled user when it is within the match threshold."""
+    if embedding is None:
+        return None, None
+
+    threshold = get_match_threshold() if threshold is None else threshold
+    best_match = None
+    best_distance = float("inf")
+
     try:
-        users = get_all_users()
-
-        best_match = None
-        best_distance = float("inf")
-
-        for u in users:
-            if not u.get("embedding"):
+        for user in get_all_users():
+            if user.get("id") == exclude_user_id or not user.get("embedding"):
                 continue
 
             try:
-                stored = np.array(json.loads(u["embedding"]))
-            except:
+                stored = np.asarray(json.loads(user["embedding"]), dtype=np.float32)
+                norm = np.linalg.norm(stored)
+                if norm == 0:
+                    continue
+                stored = stored / norm
+            except (TypeError, ValueError, json.JSONDecodeError):
+                logger.warning("Skipping invalid face embedding for user_id=%s", user.get("id"))
                 continue
 
-            # 🔥 compute distance
-            distance = np.linalg.norm(stored - embedding)
-
-            # 🧠 DEBUG (keep this while testing)
-            print(f"User: {u.get('username')} | Distance: {distance:.2f}")
-
-            # 🔍 best match selection
+            distance = float(np.linalg.norm(stored - embedding))
+            logger.info("Face comparison user_id=%s distance=%.4f threshold=%.4f", user["id"], distance, threshold)
             if distance < best_distance:
                 best_distance = distance
-                best_match = u
+                best_match = user
 
-        # ✅ final decision
-        if best_match and best_distance < threshold:
-            print(f"✅ MATCH FOUND: {best_match.get('username')} (Distance: {best_distance:.2f})")
+        if best_match and best_distance <= threshold:
+            logger.info("Face matched user_id=%s distance=%.4f", best_match["id"], best_distance)
             return best_match["id"], best_match.get("full_name") or best_match.get("username")
 
-        print(f"❌ NO MATCH (Best Distance: {best_distance:.2f})")
+        logger.info("Face not matched; nearest_distance=%.4f threshold=%.4f", best_distance, threshold)
+        return None, None
+    except Exception:
+        logger.exception("Face recognition failed")
         return None, None
 
-    except Exception as e:
-        logger.error(f"Recognition error: {str(e)}")
-        return None, None
 
-
-def check_duplicate_face(embedding, threshold=13):
-    user_id, name = recognize_user(embedding, threshold)
-    if user_id:
-        return True, name
-    return False, None
+def check_duplicate_face(embedding, threshold=None, exclude_user_id=None):
+    user_id, name = recognize_user(embedding, threshold, exclude_user_id)
+    return (user_id is not None), name

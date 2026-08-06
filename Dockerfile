@@ -24,6 +24,10 @@ COPY requirements.txt .
 RUN pip install --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r requirements.txt
 
+# Download the exact recognition model used by the application during build,
+# not during a user's first registration or attendance scan.
+RUN python -c "from deepface import DeepFace; DeepFace.build_model('Facenet')"
+
 # Copy full project
 COPY . .
 

@@ -10,6 +10,10 @@ def create_app():
 
     app = Flask(__name__)
 
+    @app.get('/health')
+    def health_check():
+        return {'status': 'ok'}, 200
+
     # ==============================
     # 🔐 SECURITY & SESSION CONFIG
     # ==============================

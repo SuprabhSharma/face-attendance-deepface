@@ -231,7 +231,10 @@ function sendEmail(name, email, date, time) {
 
             } else if (!data.found) {
 
-                notifyError("Face not recognized. Please try again.");
+                notifyError(data.message || "Face not recognized. Please try again.");
+
+            } else {
+                notifyError(data.message || "Could not recognize the face. Please try again.");
 
             }
         } catch (err) {
