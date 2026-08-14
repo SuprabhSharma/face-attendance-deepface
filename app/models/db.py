@@ -548,8 +548,8 @@ def get_latest_attendance_for_user(user_id):
     return record
 
 
-def mark_attendance(user_id, attendance_date=None, attendance_time=None, status='present'):
-    """Mark attendance for a user"""
+def mark_attendance(user_id, attendance_date=None, attendance_time=None, status=None):
+    """Mark attendance for a user, automatically determining late status based on check-in time."""
     normalized_datetime, attendance_date, attendance_time = _normalize_attendance_datetime(
         attendance_date, attendance_time
     )
@@ -575,6 +575,26 @@ def mark_attendance(user_id, attendance_date=None, attendance_time=None, status=
         conn.close()
         return False, normalized_datetime.isoformat()
     else:
+        # Determine status if not explicitly provided
+        if not status:
+            # Check working hours start time or default to 09:15:00 grace period
+            day_of_week = normalized_datetime.weekday() # 0 = Monday
+            c.execute('SELECT start_time FROM working_hours WHERE day_of_week = ? AND is_working_day = 1', (day_of_week,))
+            wh = c.fetchone()
+            cutoff_time = '09:15:00'
+            if wh and wh.get('start_time'):
+                start_h, start_m, start_s = [int(x) for x in wh['start_time'].split(':')]
+                # 15 min grace period
+                grace_mins = start_m + 15
+                grace_h = start_h + (grace_mins // 60)
+                grace_m = grace_mins % 60
+                cutoff_time = f"{grace_h:02d}:{grace_m:02d}:00"
+
+            if attendance_time > cutoff_time:
+                status = 'late'
+            else:
+                status = 'present'
+
         # Create new record
         c.execute('''
             INSERT INTO attendance (user_id, date, time_in, status)
@@ -582,7 +602,7 @@ def mark_attendance(user_id, attendance_date=None, attendance_time=None, status=
         ''', (user_id, attendance_date, attendance_time, status))
         conn.commit()
         conn.close()
-        return True, 'Attendance marked'
+        return True, status
 
 
 def get_attendance_by_user(user_id, limit=50):
