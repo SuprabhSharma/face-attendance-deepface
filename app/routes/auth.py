@@ -302,7 +302,6 @@ def change_password():
             flash('An error occurred while changing password', 'error')
             return redirect(url_for('auth.change_password'))
     
-    from flask_login import current_user
     return render_template('auth/change_password.html', user=current_user)
 
 
