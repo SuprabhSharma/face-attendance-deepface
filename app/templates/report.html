@@ -1,326 +1,523 @@
 {% extends "base.html" %}
 
-{% block title %}Reports - Face Recognition Attendance{% endblock %}
+{% block title %}My Attendance — FaceAttend{% endblock %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; }
+
+  /* ── Page shell ── */
+  .rp-header {
+    display: flex; align-items: flex-start;
+    justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    margin-bottom: 28px;
+  }
+  .rp-header h2 {
+    font-size: 1.55rem; font-weight: 700;
+    color: #0f172a; letter-spacing: -.03em; margin: 0 0 4px;
+  }
+  .rp-header p { color: #64748b; font-size: .88rem; margin: 0; }
+
+  /* ── Stat cards ── */
+  .rp-stats { display: grid; gap: 16px; grid-template-columns: repeat(4, 1fr); margin-bottom: 24px; }
+  @media (max-width: 900px) { .rp-stats { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .rp-stats { grid-template-columns: 1fr 1fr; } }
+
+  .rp-stat {
+    background: #fff; border-radius: 14px;
+    padding: 20px 22px; position: relative; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+    border: 1px solid #f1f5f9;
+  }
+  .rp-stat .st-icon {
+    position: absolute; right: 18px; top: 18px;
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+  }
+  .rp-stat .st-label {
+    font-size: .72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .06em; color: #94a3b8; margin-bottom: 6px;
+  }
+  .rp-stat .st-value {
+    font-size: 2rem; font-weight: 700; color: #0f172a; line-height: 1;
+    margin-bottom: 4px;
+  }
+  .rp-stat .st-sub { font-size: .75rem; color: #94a3b8; }
+
+  .rp-stat.present .st-icon { background: #f0fdf4; color: #22c55e; }
+  .rp-stat.absent  .st-icon { background: #fef2f2; color: #ef4444; }
+  .rp-stat.streak  .st-icon { background: #eff6ff; color: #3b82f6; }
+  .rp-stat.rate    .st-icon { background: #fefce8; color: #eab308; }
+
+  /* ── Filter bar ── */
+  .rp-filters {
+    background: #fff; border-radius: 14px;
+    padding: 18px 20px; margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+    border: 1px solid #f1f5f9;
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;
+  }
+  .rp-filters .fl-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 140px; }
+  .rp-filters .fl-group label {
+    font-size: .72rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em; color: #64748b;
+  }
+  .rp-filters select,
+  .rp-filters input[type="month"],
+  .rp-filters input[type="date"] {
+    border: 1.5px solid #e2e8f0; border-radius: 9px;
+    padding: 9px 12px; font-size: .875rem; color: #0f172a;
+    background: #f8fafc; outline: none; font-family: 'Inter', sans-serif;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .rp-filters select:focus,
+  .rp-filters input:focus {
+    border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.1);
+    background: #fff;
+  }
+  .rp-filters .fl-reset {
+    background: none; border: 1.5px solid #e2e8f0; border-radius: 9px;
+    padding: 9px 16px; font-size: .875rem; color: #64748b; cursor: pointer;
+    font-family: 'Inter', sans-serif; transition: all .2s; white-space: nowrap;
+  }
+  .rp-filters .fl-reset:hover { border-color: #6366f1; color: #6366f1; }
+
+  /* ── Table card ── */
+  .rp-card {
+    background: #fff; border-radius: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+    border: 1px solid #f1f5f9; overflow: hidden;
+  }
+  .rp-card-head {
+    padding: 18px 24px; border-bottom: 1px solid #f1f5f9;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .rp-card-head h5 {
+    font-size: .95rem; font-weight: 700; color: #0f172a; margin: 0;
+  }
+  .rp-card-head .rp-count {
+    font-size: .78rem; color: #94a3b8; font-weight: 500;
+  }
+
+  /* Table */
+  .rp-table { width: 100%; border-collapse: collapse; }
+  .rp-table thead th {
+    padding: 10px 20px; background: #f8fafc;
+    font-size: .7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: #94a3b8;
+    border-bottom: 1px solid #f1f5f9; text-align: left; white-space: nowrap;
+  }
+  .rp-table tbody tr {
+    border-bottom: 1px solid #f8fafc;
+    transition: background .15s;
+  }
+  .rp-table tbody tr:last-child { border-bottom: none; }
+  .rp-table tbody tr:hover { background: #f8fafc; }
+  .rp-table td { padding: 14px 20px; font-size: .875rem; color: #374151; vertical-align: middle; }
+
+  /* Status badges */
+  .rp-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 6px;
+    font-size: .72rem; font-weight: 600; letter-spacing: .02em;
+  }
+  .rp-badge.present { background: #f0fdf4; color: #15803d; }
+  .rp-badge.absent  { background: #fef2f2; color: #b91c1c; }
+  .rp-badge.late    { background: #fffbeb; color: #b45309; }
+  .rp-badge.half_day{ background: #eff6ff; color: #1d4ed8; }
+  .rp-badge i { font-size: .75rem; }
+
+  /* Day of week pill */
+  .rp-day {
+    display: inline-block; padding: 2px 8px; border-radius: 5px;
+    font-size: .7rem; font-weight: 600; background: #f1f5f9; color: #475569;
+    margin-left: 6px;
+  }
+
+  /* Timeline dot */
+  .rp-time-block { display: flex; flex-direction: column; }
+  .rp-time-block .t-in { font-weight: 600; color: #0f172a; }
+  .rp-time-block .t-label { font-size: .7rem; color: #94a3b8; }
+
+  /* Empty / loading */
+  .rp-empty { text-align: center; padding: 60px 20px; color: #94a3b8; }
+  .rp-empty i { font-size: 2.5rem; display: block; margin-bottom: 12px; }
+  .rp-empty p { font-size: .9rem; margin: 0; }
+
+  .rp-loading { text-align: center; padding: 60px 20px; }
+  .rp-spinner {
+    width: 32px; height: 32px; border: 3px solid #f1f5f9;
+    border-top-color: #6366f1; border-radius: 50%;
+    animation: spin .7s linear infinite; margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Refresh btn */
+  .rp-refresh {
+    display: flex; align-items: center; gap: 7px;
+    background: none; border: 1.5px solid #e2e8f0; border-radius: 9px;
+    padding: 8px 14px; font-size: .82rem; font-weight: 600;
+    color: #475569; cursor: pointer; font-family: 'Inter', sans-serif;
+    transition: all .2s;
+  }
+  .rp-refresh:hover { border-color: #6366f1; color: #6366f1; }
+  .rp-refresh.spinning i { animation: spin .7s linear infinite; }
+
+  /* Month bar chart */
+  .rp-mini-chart { display: flex; align-items: flex-end; gap: 3px; height: 36px; }
+  .rp-mini-bar {
+    flex: 1; border-radius: 3px 3px 0 0;
+    min-height: 3px; transition: height .4s ease;
+  }
+  .rp-mini-bar.p { background: #22c55e; }
+  .rp-mini-bar.a { background: #fca5a5; }
+  .rp-mini-bar.l { background: #fcd34d; }
+
+  /* Pagination */
+  .rp-pagination {
+    display: flex; justify-content: center; gap: 6px;
+    padding: 16px 20px; border-top: 1px solid #f1f5f9;
+  }
+  .rp-pg-btn {
+    min-width: 32px; height: 32px; border: 1.5px solid #e2e8f0;
+    border-radius: 7px; background: #fff; font-size: .8rem; font-weight: 600;
+    color: #475569; cursor: pointer; display: flex; align-items: center;
+    justify-content: center; padding: 0 10px; transition: all .15s;
+    font-family: 'Inter', sans-serif;
+  }
+  .rp-pg-btn:hover:not(:disabled) { border-color: #6366f1; color: #6366f1; }
+  .rp-pg-btn.active { background: #6366f1; border-color: #6366f1; color: #fff; }
+  .rp-pg-btn:disabled { opacity: .35; cursor: not-allowed; }
+</style>
+{% endblock %}
 
 {% block content %}
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('pageTitle').textContent = 'Reports';
-    });
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('pageTitle').textContent = 'My Attendance';
+  });
 </script>
 
-<div class="row">
-    <!-- Page Header -->
-    <div class="col-12 mb-4">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h2 class="mb-1 fw-bold">Attendance Reports</h2>
-                <p class="text-muted mb-0">View and manage attendance records</p>
-            </div>
-            <button id="refreshBtn" class="btn btn-outline-primary">
-                <i class="bi bi-arrow-clockwise me-2"></i>Refresh
-            </button>
-        </div>
-    </div>
+<!-- Header -->
+<div class="rp-header">
+  <div>
+    <h2>My Attendance Records</h2>
+    <p>Personal attendance history for <strong>{{ current_user.username }}</strong></p>
+  </div>
+  <button class="rp-refresh" id="refreshBtn">
+    <i class="bi bi-arrow-clockwise" id="refreshIcon"></i> Refresh
+  </button>
+</div>
+
+<!-- Stats -->
+<div class="rp-stats">
+  <div class="rp-stat present">
+    <div class="st-icon"><i class="bi bi-check-circle-fill"></i></div>
+    <div class="st-label">Present This Month</div>
+    <div class="st-value" id="statPresent">--</div>
+    <div class="st-sub" id="statPresentSub">days attended</div>
+  </div>
+  <div class="rp-stat absent">
+    <div class="st-icon"><i class="bi bi-x-circle-fill"></i></div>
+    <div class="st-label">Absent This Month</div>
+    <div class="st-value" id="statAbsent">--</div>
+    <div class="st-sub" id="statAbsentSub">days missed</div>
+  </div>
+  <div class="rp-stat streak">
+    <div class="st-icon"><i class="bi bi-lightning-fill"></i></div>
+    <div class="st-label">Current Streak</div>
+    <div class="st-value" id="statStreak">--</div>
+    <div class="st-sub">consecutive days</div>
+  </div>
+  <div class="rp-stat rate">
+    <div class="st-icon"><i class="bi bi-bar-chart-fill"></i></div>
+    <div class="st-label">Attendance Rate</div>
+    <div class="st-value" id="statRate">--%</div>
+    <div class="st-sub">this month</div>
+  </div>
 </div>
 
 <!-- Filters -->
-<div class="row mb-4">
-    <div class="col-lg-12">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label for="searchInput" class="form-label fw-semibold small">Search by Name</label>
-                        <input 
-                            type="text" 
-                            id="searchInput" 
-                            class="form-control" 
-                            placeholder="Search attendance records...">
-                    </div>
-                    <div class="col-md-6">
-                        <label for="dateFilter" class="form-label fw-semibold small">Filter by Date</label>
-                        <input 
-                            type="date" 
-                            id="dateFilter" 
-                            class="form-control">
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="rp-filters">
+  <div class="fl-group">
+    <label>Month</label>
+    <input type="month" id="filterMonth">
+  </div>
+  <div class="fl-group">
+    <label>Status</label>
+    <select id="filterStatus">
+      <option value="">All Statuses</option>
+      <option value="present">Present</option>
+      <option value="absent">Absent</option>
+      <option value="late">Late</option>
+      <option value="half_day">Half Day</option>
+    </select>
+  </div>
+  <div class="fl-group">
+    <label>Specific Date</label>
+    <input type="date" id="filterDate">
+  </div>
+  <button class="fl-reset" id="resetFilters">
+    <i class="bi bi-x-lg me-1"></i> Clear Filters
+  </button>
 </div>
 
-<!-- Statistics Row -->
-<div class="row mb-4">
-    <div class="col-md-6 col-lg-3">
-        <div class="card border-0 shadow-sm bg-gradient-blue text-white">
-            <div class="card-body">
-                <small class="d-block mb-2 opacity-75">Total Records</small>
-                <h4 class="mb-0" id="totalRecords">--</h4>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 col-lg-3">
-        <div class="card border-0 shadow-sm bg-gradient-green text-white">
-            <div class="card-body">
-                <small class="d-block mb-2 opacity-75">Today's Records</small>
-                <h4 class="mb-0" id="todayRecords">--</h4>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 col-lg-3">
-        <div class="card border-0 shadow-sm bg-gradient-purple text-white">
-            <div class="card-body">
-                <small class="d-block mb-2 opacity-75">Unique Users</small>
-                <h4 class="mb-0" id="uniqueUsers">--</h4>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 col-lg-3">
-        <div class="card border-0 shadow-sm bg-gradient-orange text-white">
-            <div class="card-body">
-                <small class="d-block mb-2 opacity-75">This Month</small>
-                <h4 class="mb-0" id="thisMonthRecords">--</h4>
-            </div>
-        </div>
-    </div>
+<!-- Table -->
+<div class="rp-card">
+  <div class="rp-card-head">
+    <h5><i class="bi bi-calendar3 me-2 text-indigo-500"></i> Attendance Log</h5>
+    <span class="rp-count" id="recordCount">— records</span>
+  </div>
+
+  <!-- Loading -->
+  <div id="stateLoading" class="rp-loading">
+    <div class="rp-spinner"></div>
+    <p style="color:#94a3b8;font-size:.85rem;margin:0">Loading your records…</p>
+  </div>
+
+  <!-- Empty -->
+  <div id="stateEmpty" class="rp-empty" style="display:none">
+    <i class="bi bi-calendar-x"></i>
+    <p>No attendance records found for the selected filters.</p>
+  </div>
+
+  <!-- Table -->
+  <div id="stateTable" style="display:none;overflow-x:auto">
+    <table class="rp-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Day</th>
+          <th>Check-In</th>
+          <th>Status</th>
+          <th>Working Hours</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <div class="rp-pagination" id="paginationArea" style="display:none"></div>
 </div>
-
-<!-- Data Table -->
-<div class="row">
-    <div class="col-12">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white border-bottom">
-                <h5 class="mb-0 fw-bold">Attendance Records</h5>
-            </div>
-            <div class="card-body p-0">
-                <!-- Loading State -->
-                <div id="loadingState" class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="text-muted mt-3">Loading records...</p>
-                </div>
-
-                <!-- Table -->
-                <div id="recordsContainer" style="display: none;">
-                    <div class="d-block d-md-none px-3 py-3" id="mobileRecordsList"></div>
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0 d-none d-md-table">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th class="px-4 py-3">Date</th>
-                                    <th class="px-4 py-3">Name</th>
-                                    <th class="px-4 py-3">Time</th>
-                                    <th class="px-4 py-3 text-end">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tableBody">
-                                <tr>
-                                    <td colspan="4" class="text-center py-5 text-muted">No records found</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Empty State -->
-                <div id="emptyState" class="text-center py-5">
-                    <i class="bi bi-inbox" style="font-size: 3rem; color: #dee2e6;"></i>
-                    <p class="text-muted mt-3">No attendance records found</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Pagination -->
-<nav id="paginationContainer" class="mt-4" style="display: none;">
-    <ul class="pagination justify-content-center" id="pagination">
-        <!-- Pagination buttons will be inserted here -->
-    </ul>
-</nav>
-
-<style>
-    .bg-gradient-blue {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-    .bg-gradient-green {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    }
-    .bg-gradient-purple {
-        background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
-    }
-    .bg-gradient-orange {
-        background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-    }
-</style>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-    let allRecords = [];
-    let filteredRecords = [];
-    const recordsPerPage = 20;
-    let currentPage = 1;
+  let allRecords   = [];
+  let filtered     = [];
+  const PER_PAGE   = 15;
+  let page         = 1;
 
-    async function loadAttendance() {
-        const loading = document.getElementById('loadingState');
-        const container = document.getElementById('recordsContainer');
-        const empty = document.getElementById('emptyState');
-        
-        loading.style.display = 'block';
-        container.style.display = 'none';
-        empty.style.display = 'none';
-        
-        try {
-            const res = await fetch('/api/attendance');
-            const result = await res.json();
-            
-            if (result.success) {
-                allRecords = result.data || [];
-                filterRecords();
-                updateStatistics();
-                loading.style.display = 'none';
-                
-                if (allRecords.length === 0) {
-                    empty.style.display = 'block';
-                } else {
-                    container.style.display = 'block';
-                    renderTable();
-                }
-            } else {
-                notifyError('Failed to load records');
-                empty.style.display = 'block';
-            }
-        } catch (error) {
-            console.error('Error loading attendance:', error);
-            notifyError('Network error while loading records');
-            empty.style.display = 'block';
-        }
+  // ── Helpers ──────────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function fmtDate(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  }
+  function dayName(dateStr) {
+    return DAYS[new Date(dateStr + 'T00:00:00').getDay()];
+  }
+  function fmtTime(t) {
+    if (!t || t === '--') return '--';
+    const [h, m] = t.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    return `${((h % 12) || 12)}:${String(m).padStart(2,'0')} ${ampm}`;
+  }
+  function todayStr() { return new Date().toLocaleDateString('en-CA'); }
+  function thisMonthStr() { return new Date().toLocaleDateString('en-CA').slice(0,7); }
+
+  // ── Load data ─────────────────────────────────────────────
+  async function load() {
+    setState('loading');
+    const btn = $('refreshBtn'); const ico = $('refreshIcon');
+    btn.classList.add('spinning'); ico.classList.add('spinning');
+
+    try {
+      const res  = await fetch('/api/attendance');
+      const json = await res.json();
+      if (json.success) {
+        allRecords = json.data || [];
+        applyFilters();
+        updateStats();
+      } else {
+        setState('empty');
+      }
+    } catch (e) {
+      console.error(e);
+      setState('empty');
+    } finally {
+      btn.classList.remove('spinning'); ico.classList.remove('spinning');
+    }
+  }
+
+  // ── Filters ───────────────────────────────────────────────
+  function applyFilters() {
+    const month  = $('filterMonth').value;     // "2026-08"
+    const status = $('filterStatus').value;    // "present" | ""
+    const date   = $('filterDate').value;      // "2026-08-14" | ""
+
+    filtered = allRecords.filter(r => {
+      if (month  && !r.date.startsWith(month))   return false;
+      if (date   && r.date !== date)              return false;
+      if (status && (r.status || 'present') !== status) return false;
+      return true;
+    });
+
+    page = 1;
+    render();
+  }
+
+  // ── Stats ─────────────────────────────────────────────────
+  function updateStats() {
+    const month = thisMonthStr();
+    const monthRecs = allRecords.filter(r => r.date.startsWith(month));
+
+    const present = monthRecs.filter(r => (r.status || 'present') === 'present' || (r.status || '') === 'late').length;
+    const absent  = monthRecs.filter(r => (r.status || '') === 'absent').length;
+
+    // Working days this month so far (Mon–Fri up to today)
+    const now = new Date();
+    const [y, m] = month.split('-').map(Number);
+    let workingDays = 0;
+    for (let d = 1; d <= now.getDate(); d++) {
+      const dow = new Date(y, m-1, d).getDay();
+      if (dow !== 0 && dow !== 6) workingDays++;
     }
 
-    function filterRecords() {
-        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-        const dateFilter = document.getElementById('dateFilter').value;
-        
-        filteredRecords = allRecords.filter(record => {
-            const recordName = (record.name || 'Unknown User').toLowerCase();
-            const nameMatch = recordName.includes(searchTerm);
-            const dateMatch = !dateFilter || record.date === dateFilter;
-            return nameMatch && dateMatch;
-        });
-        
-        currentPage = 1;
-        renderTable();
+    const rate = workingDays > 0 ? Math.round((present / workingDays) * 100) : 0;
+
+    // Current streak — count consecutive present days going back from today
+    const sorted = [...allRecords]
+      .filter(r => (r.status || 'present') !== 'absent')
+      .sort((a,b) => b.date.localeCompare(a.date));
+    let streak = 0;
+    let check = new Date(todayStr() + 'T00:00:00');
+    for (let i = 0; i < 60; i++) {
+      const ds = check.toLocaleDateString('en-CA');
+      const dow = check.getDay();
+      if (dow === 0 || dow === 6) { check.setDate(check.getDate()-1); continue; }
+      if (sorted.find(r => r.date === ds)) { streak++; check.setDate(check.getDate()-1); }
+      else break;
     }
 
-    function updateStatistics() {
-        const today = new Date().toLocaleDateString('en-CA'); 
-        const thisMonth = new Date().toLocaleDateString('en-CA').slice(0, 7);
-        
-        const todayCount = allRecords.filter(r => r.date === today).length;
-        const thisMonthCount = allRecords.filter(r => r.date.startsWith(thisMonth)).length;
-        const uniqueUsers = new Set(allRecords.map(r => r.name)).size;
-        
-        document.getElementById('totalRecords').textContent = allRecords.length;
-        document.getElementById('todayRecords').textContent = todayCount;
-        document.getElementById('uniqueUsers').textContent = uniqueUsers;
-        document.getElementById('thisMonthRecords').textContent = thisMonthCount;
+    $('statPresent').textContent = present;
+    $('statPresentSub').textContent = `of ${workingDays} working days`;
+    $('statAbsent').textContent = absent;
+    $('statAbsentSub').textContent = workingDays > 0 ? `${workingDays - present} days missed` : 'days missed';
+    $('statStreak').textContent = streak;
+    $('statRate').textContent = rate + '%';
+  }
+
+  // ── Render table ──────────────────────────────────────────
+  function render() {
+    $('recordCount').textContent = `${filtered.length} record${filtered.length !== 1 ? 's' : ''}`;
+
+    if (filtered.length === 0) { setState('empty'); return; }
+    setState('table');
+
+    const start = (page - 1) * PER_PAGE;
+    const slice = filtered.slice(start, start + PER_PAGE);
+
+    $('tableBody').innerHTML = slice.map(r => {
+      const status  = r.status || 'present';
+      const timeIn  = fmtTime(r.time_in || r.time);
+      const timeOut = fmtTime(r.time_out);
+
+      // Estimated working hours (if both check-in and check-out exist)
+      let hrs = '--';
+      if (r.time_in && r.time_out) {
+        const [ih, im] = r.time_in.split(':').map(Number);
+        const [oh, om] = r.time_out.split(':').map(Number);
+        const mins = (oh * 60 + om) - (ih * 60 + im);
+        if (mins > 0) hrs = `${Math.floor(mins/60)}h ${mins%60}m`;
+      }
+
+      const badge = {
+        present:  `<span class="rp-badge present"><i class="bi bi-check-circle-fill"></i> Present</span>`,
+        absent:   `<span class="rp-badge absent"><i class="bi bi-x-circle-fill"></i> Absent</span>`,
+        late:     `<span class="rp-badge late"><i class="bi bi-clock-fill"></i> Late</span>`,
+        half_day: `<span class="rp-badge half_day"><i class="bi bi-adjust"></i> Half Day</span>`,
+      }[status] || `<span class="rp-badge present">${status}</span>`;
+
+      return `<tr>
+        <td>
+          <span style="font-weight:600;color:#0f172a">${fmtDate(r.date)}</span>
+        </td>
+        <td><span class="rp-day">${dayName(r.date)}</span></td>
+        <td>
+          <div class="rp-time-block">
+            <span class="t-in">${timeIn}</span>
+            <span class="t-label">Check-in</span>
+          </div>
+        </td>
+        <td>${badge}</td>
+        <td style="color:#64748b;font-size:.82rem">${hrs}</td>
+      </tr>`;
+    }).join('');
+
+    renderPagination();
+  }
+
+  function renderPagination() {
+    const total = Math.ceil(filtered.length / PER_PAGE);
+    const pa = $('paginationArea');
+    if (total <= 1) { pa.style.display = 'none'; return; }
+    pa.style.display = 'flex';
+
+    let html = `<button class="rp-pg-btn" onclick="goPage(${page-1})" ${page===1?'disabled':''}>
+      <i class="bi bi-chevron-left"></i>
+    </button>`;
+    for (let i = 1; i <= total; i++) {
+      html += `<button class="rp-pg-btn ${i===page?'active':''}" onclick="goPage(${i})">${i}</button>`;
     }
+    html += `<button class="rp-pg-btn" onclick="goPage(${page+1})" ${page===total?'disabled':''}>
+      <i class="bi bi-chevron-right"></i>
+    </button>`;
+    pa.innerHTML = html;
+  }
 
-    function renderTable() {
-        const tbody = document.getElementById('tableBody');
-        const mobileList = document.getElementById('mobileRecordsList');
-        const start = (currentPage - 1) * recordsPerPage;
-        const end = start + recordsPerPage;
-        const pageRecords = filteredRecords.slice(start, end);
-        
-        if (pageRecords.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-5 text-muted">No records found</td></tr>';
-            mobileList.innerHTML = '<div class="text-center text-muted py-4">No records found</div>';
-            document.getElementById('paginationContainer').style.display = 'none';
-            return;
-        }
-        
-        tbody.innerHTML = pageRecords.map(record => `
-            <tr>
-                <td class="px-4 py-3">
-                    <small class="fw-semibold">${new Date(record.date).toLocaleDateString()}</small>
-                </td>
-                <td class="px-4 py-3">
-                    <div class="d-flex align-items-center">
-                        <div class="rounded-circle bg-primary bg-opacity-10 me-2" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
-                            <i class="bi bi-person text-primary" style="font-size: 1rem;"></i>
-                        </div>
-                        <div>
-                            <small class="fw-semibold d-block">${record.name || 'Unknown User'}</small>
-                        </div>
-                    </div>
-                </td>
-                <td class="px-4 py-3">
-                    <small class="text-muted">${record.time || record.time_in || '--'}</small>
-                </td>
-                <td class="px-4 py-3 text-end">
-                    <button class="btn btn-sm btn-outline-secondary" title="View Details">
-                        <i class="bi bi-eye"></i>
-                    </button>
-                </td>
-            </tr>
-        `).join('');
+  function goPage(p) {
+    const total = Math.ceil(filtered.length / PER_PAGE);
+    if (p < 1 || p > total) return;
+    page = p;
+    render();
+    document.querySelector('.rp-card').scrollIntoView({behavior:'smooth', block:'start'});
+  }
 
-        mobileList.innerHTML = pageRecords.map(record => `
-            <div class="card border-0 shadow-sm mb-3">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
-                        <div>
-                            <div class="fw-semibold">${record.name || 'Unknown User'}</div>
-                            <div class="text-muted small">${new Date(record.date).toLocaleDateString()}</div>
-                        </div>
-                        <span class="badge text-bg-light">${record.status || 'present'}</span>
-                    </div>
-                    <div class="small text-muted">
-                        <strong class="text-dark">Time:</strong> ${record.time || record.time_in || '--'}
-                    </div>
-                </div>
-            </div>
-        `).join('');
-        
-        // Render pagination if needed
-        if (filteredRecords.length > recordsPerPage) {
-            renderPagination();
-            document.getElementById('paginationContainer').style.display = 'block';
-        } else {
-            document.getElementById('paginationContainer').style.display = 'none';
-        }
-    }
+  // ── State switch ──────────────────────────────────────────
+  function setState(s) {
+    $('stateLoading').style.display = s === 'loading' ? 'block' : 'none';
+    $('stateEmpty').style.display   = s === 'empty'   ? 'block' : 'none';
+    $('stateTable').style.display   = s === 'table'   ? 'block' : 'none';
+    $('paginationArea').style.display = s === 'table' ? '' : 'none';
+  }
 
-    function renderPagination() {
-        const totalPages = Math.ceil(filteredRecords.length / recordsPerPage);
-        const pagination = document.getElementById('pagination');
-        pagination.innerHTML = '';
-        
-        for (let i = 1; i <= totalPages; i++) {
-            const li = document.createElement('li');
-            li.className = `page-item ${i === currentPage ? 'active' : ''}`;
-            li.innerHTML = `<a class="page-link" href="#" onclick="goToPage(${i}); return false;">${i}</a>`;
-            pagination.appendChild(li);
-        }
-    }
+  // ── Set default month filter to current month ─────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    $('filterMonth').value = thisMonthStr();
+    load();
+  });
 
-    function goToPage(page) {
-        currentPage = page;
-        renderTable();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+  $('refreshBtn').addEventListener('click', load);
 
-    // Event Listeners
-    document.addEventListener('DOMContentLoaded', loadAttendance);
-    document.getElementById('refreshBtn').addEventListener('click', loadAttendance);
-    document.getElementById('searchInput').addEventListener('input', filterRecords);
-    document.getElementById('dateFilter').addEventListener('change', filterRecords);
+  ['filterMonth', 'filterStatus', 'filterDate'].forEach(id => {
+    $(id).addEventListener('change', applyFilters);
+  });
+
+  $('resetFilters').addEventListener('click', () => {
+    $('filterMonth').value  = thisMonthStr();
+    $('filterStatus').value = '';
+    $('filterDate').value   = '';
+    applyFilters();
+  });
 </script>
 {% endblock %}
-
