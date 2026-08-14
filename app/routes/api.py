@@ -247,20 +247,25 @@ def attendance():
             time_val = r.get('time_in') or r.get('time')
             raw_status = r.get('status')
 
-            # Accurately resolve status for every time window
+            # Accurate 9-to-5 Corporate Time Window Categorization:
             if raw_status == 'absent' or not time_val:
+                resolved_status = 'absent'
+            elif time_val < '06:00:00' or time_val > '17:00:00':
+                # Outside office hours (e.g. 11:14 PM) -> ABSENT
                 resolved_status = 'absent'
             elif raw_status in ('half_day', 'late'):
                 resolved_status = raw_status
+            elif time_val <= '09:15:00':
+                # 06:00 AM - 09:15 AM -> PRESENT (On-Time + 15m Grace)
+                resolved_status = 'present'
+            elif time_val <= '13:00:00':
+                # 09:16 AM - 01:00 PM -> LATE
+                resolved_status = 'late'
+            elif time_val <= '17:00:00':
+                # 01:01 PM - 05:00 PM -> HALF DAY
+                resolved_status = 'half_day'
             else:
-                # If raw_status is present/None, resolve accurately from check-in time
-                if time_val <= '09:15:00':
-                    resolved_status = 'present'
-                elif time_val <= '13:00:00':
-                    resolved_status = 'late'
-                else:
-                    # After 1:00 PM (including evening/night 11:14 PM) is Half Day
-                    resolved_status = 'half_day'
+                resolved_status = 'absent'
 
             res.append({
                 'date': r['date'],

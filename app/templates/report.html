@@ -490,7 +490,7 @@
         <td>
           <div class="rp-time-block">
             <span class="t-in">${timeIn}</span>
-            <span class="t-label">${status === 'absent' ? 'No punch' : 'Check-in'}</span>
+            <span class="t-label">${status === 'absent' ? (r.time_in ? 'After hours' : 'No punch') : 'Check-in'}</span>
           </div>
         </td>
         <td>${badge}</td>

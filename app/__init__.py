@@ -104,9 +104,9 @@ def create_app():
             # ✅ Prevent multiple scheduler starts
             if not scheduler.running:
                 start_scheduler()
-                logging.info("✅ Attendance scheduler started")
+            logging.info("[OK] Attendance scheduler started")
 
         except Exception as e:
-            logging.error(f"❌ Failed to start scheduler: {e}")
+            logging.error(f"Failed to start scheduler: {e}")
 
     return app
