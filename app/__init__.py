@@ -78,16 +78,21 @@ def create_app():
     app.register_blueprint(auth_bp)
 
     # ==============================
-    # 🤖 PRELOAD FACE MODEL AT STARTUP
-    # Importing face_service here triggers DeepFace.build_model('SFace')
-    # at server boot time so the first user request is instant.
+    # 🤖 PRELOAD FACE MODEL (BACKGROUND THREAD)
+    # Runs in a daemon thread so it never blocks Gunicorn startup.
+    # By the time a real user logs in and reaches the register page,
+    # SFace will already be warm in memory.
     # ==============================
-    with app.app_context():
+    import threading
+    def _preload_sface():
         try:
-            import app.services.face_service  # noqa: F401 — side-effect: preloads SFace
-            logging.info("SFace face recognition model loaded at startup.")
-        except Exception as e:
-            logging.warning(f"Face model preload skipped: {e}")
+            from app.services.face_service import get_face_embedding  # triggers DeepFace.build_model
+            logging.info("SFace model preloaded successfully in background thread.")
+        except Exception as _e:
+            logging.warning(f"SFace background preload warning: {_e}")
+
+    _t = threading.Thread(target=_preload_sface, daemon=True)
+    _t.start()
 
     # ==============================
     # ⏰ SCHEDULER (FIXED)

@@ -169,11 +169,12 @@
     document.getElementById('captureBtn').addEventListener('click', async () => {
         const btn = document.getElementById('captureBtn');
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 90000);
+        // 120 seconds — covers Render cold-start (30-45s) + SFace model load (15-25s) + inference
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
         let base64Img = null;
         
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Registering...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing... please wait';
 
         try {
             base64Img = captureBase64('videoElement', 'canvasElement');
@@ -186,18 +187,22 @@
             const data = await readJsonSafely(res);
             
             if (data.success) {
+                // Both fresh registration and already-registered scenarios are success
                 notifySuccess(data.message || 'Face registered successfully!');
                 setTimeout(() => {
                     window.location.href = '/camera';
                 }, 2000);
             } else {
-                notifyError(data.message || 'Registration failed');
+                notifyError(data.message || 'Registration failed. Please try again.');
             }
         } catch (err) {
             if (err.name === 'AbortError') {
-                notifyError('Face registration timed out after 30 seconds. Please try again.');
+                // Timeout fired — server may still be processing in background.
+                // Instruct user to try clicking again; the next click will detect
+                // the saved embedding and return success.
+                notifyWarning('Server is taking longer than expected (model loading). Please click Register again.');
             } else {
-                notifyError(err.message || 'Network error: Could not connect to server');
+                notifyError(err.message || 'Network error: Could not connect to server.');
             }
         } finally {
             clearTimeout(timeoutId);
