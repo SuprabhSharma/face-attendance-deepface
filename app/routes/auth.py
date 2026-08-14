@@ -42,11 +42,9 @@ class User:
 
 
 def validate_username(username):
-    """Validate username format"""
-    if len(username) < 3 or len(username) > 20:
-        return False, "Username must be 3-20 characters"
-    if not re.match(r'^[a-zA-Z0-9_]+$', username):
-        return False, "Username can only contain letters, numbers, and underscores"
+    """Validate name used as username — allows letters, spaces, dots"""
+    if len(username) < 2 or len(username) > 50:
+        return False, "Name must be 2-50 characters"
     return True, ""
 
 
@@ -171,7 +169,7 @@ def register():
 
         errors = []
 
-        # Name validation
+        # Name validation — this IS the username
         if not full_name:
             errors.append('Your name is required.')
         elif len(full_name) < 2 or len(full_name) > 50:
@@ -196,17 +194,12 @@ def register():
         if password != confirm_password:
             errors.append('Passwords do not match.')
 
-        # Auto-generate a unique username slug from the full name
-        # e.g. "Suprabh Sharma" → "suprabh_sharma", or "suprabh_sharma2" if taken
-        import re as _re
-        base_username = _re.sub(r'[^a-z0-9]+', '_', full_name.lower()).strip('_')[:20]
-        username = base_username
-        suffix = 1
-        if not errors:
-            while get_user_by_username(username):
-                suffix += 1
-                username = f"{base_username[:17]}_{suffix}"
+        # full_name IS the username — use it directly
+        username = full_name
 
+        if not errors:
+            if get_user_by_username(username):
+                errors.append(f'The name "{full_name}" is already registered. Please sign in or use a different name.')
             if get_user_by_email(email):
                 errors.append('This email is already registered. Please sign in.')
 

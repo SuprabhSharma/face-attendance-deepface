@@ -240,9 +240,9 @@
 
       <form method="POST" id="registerForm" novalidate>
 
-        <!-- Name — single field, used as both username and display name -->
+        <!-- Name — this IS the username, used to login -->
         <div class="fa-field">
-          <label for="reg_name">Your Name</label>
+          <label for="reg_name">Your Name <span style="color:#94a3b8;font-weight:400;text-transform:none;font-size:.78rem;">(you'll use this to sign in)</span></label>
           <div class="fa-input-wrap">
             <i class="fa-icon bi bi-person-fill"></i>
             <input id="reg_name" name="full_name" type="text"
