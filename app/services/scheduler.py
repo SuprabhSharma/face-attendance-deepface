@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from app.models.db import (
     get_all_users, check_and_mark_absent, generate_daily_report,
-    get_user_monthly_summary, get_attendance_today, log_audit
+    get_user_monthly_summary, get_attendance_today, log_audit, IST
 )
 from app.services.email_service import email_service
 
@@ -21,7 +21,7 @@ class AttendanceScheduler:
     def mark_end_of_day_absentees():
         try:
             logger.info('🔄 Starting end-of-day absent marking...')
-            today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+            today = datetime.now(IST).strftime('%Y-%m-%d')
 
             all_users = get_all_users()
             marked_count = 0
@@ -49,7 +49,7 @@ class AttendanceScheduler:
     def send_daily_summaries():
         try:
             logger.info('📧 Sending daily summaries...')
-            today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+            today = datetime.now(IST).strftime('%Y-%m-%d')
 
             today_records = get_attendance_today()
             sent_count = 0
@@ -82,7 +82,7 @@ class AttendanceScheduler:
     def generate_monthly_reports():
         try:
             logger.info('📊 Generating monthly reports...')
-            today = datetime.now(timezone.utc)
+            today = datetime.now(IST)
 
             all_users = get_all_users()
             report_count = 0
