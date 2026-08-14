@@ -4,165 +4,366 @@ import json
 import os
 from hashlib import pbkdf2_hmac
 
-# ✅ IST TIMEZONE (ADD THIS)
+# ✅ IST TIMEZONE
 IST = timezone(timedelta(hours=5, minutes=30))
+
+# ── DATABASE CONFIGURATION (Auto-detects PostgreSQL vs SQLite) ──
+DATABASE_URL = os.getenv('DATABASE_URL', '').strip()
+if DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
+IS_POSTGRES = bool(DATABASE_URL)
 
 _DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'attendance_system.db')
 DB_PATH = os.path.abspath(os.getenv('DB_PATH', _DEFAULT_DB_PATH))
 
+# Optional psycopg2 import for PostgreSQL
+if IS_POSTGRES:
+    try:
+        import psycopg2
+        import psycopg2.extras
+    except ImportError:
+        IS_POSTGRES = False
+        print("Warning: psycopg2 not installed. Falling back to local SQLite.")
+
+
+class DBConnectionWrapper:
+    """Unified wrapper around SQLite and PostgreSQL connection."""
+    def __init__(self, conn, is_postgres):
+        self._conn = conn
+        self.is_postgres = is_postgres
+
+    def cursor(self):
+        if self.is_postgres:
+            return DBCursorWrapper(self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor), True)
+        return DBCursorWrapper(self._conn.cursor(), False)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        self._conn.close()
+
+    def execute(self, sql, params=()):
+        c = self.cursor()
+        c.execute(sql, params)
+        return c
+
+
+class DBCursorWrapper:
+    """Unified cursor that translates '?' placeholders to '%s' for PostgreSQL."""
+    def __init__(self, cursor, is_postgres):
+        self._cursor = cursor
+        self.is_postgres = is_postgres
+
+    def execute(self, sql, params=()):
+        if self.is_postgres:
+            # Convert '?' to '%s'
+            sql_pg = sql.replace('?', '%s')
+            return self._cursor.execute(sql_pg, params)
+        return self._cursor.execute(sql, params)
+
+    def executemany(self, sql, params_list):
+        if self.is_postgres:
+            sql_pg = sql.replace('?', '%s')
+            return self._cursor.executemany(sql_pg, params_list)
+        return self._cursor.executemany(sql, params_list)
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        if row is None:
+            return None
+        if not self.is_postgres:
+            return dict(row)
+        return dict(row)
+
+    def fetchall(self):
+        rows = self._cursor.fetchall()
+        if not rows:
+            return []
+        if not self.is_postgres:
+            return [dict(r) for r in rows]
+        return [dict(r) for r in rows]
+
+    @property
+    def lastrowid(self):
+        if self.is_postgres:
+            # For Postgres, lastrowid might be None if RETURNING was not used
+            return getattr(self._cursor, 'lastrowid', None)
+        return self._cursor.lastrowid
+
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
+
+    @property
+    def description(self):
+        return self._cursor.description
+
+    def close(self):
+        self._cursor.close()
+
+
 def get_db_connection():
+    """Get database connection (PostgreSQL if DATABASE_URL exists, otherwise SQLite)."""
+    if IS_POSTGRES and DATABASE_URL:
+        conn = psycopg2.connect(DATABASE_URL)
+        return DBConnectionWrapper(conn, is_postgres=True)
+    
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
-    return conn
+    return DBConnectionWrapper(conn, is_postgres=False)
+
 
 def hash_password(password):
     """Hash password using PBKDF2"""
     salt = b'attendance_system_salt_2024'
     return pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000).hex()
 
+
 def verify_password(password_hash, password):
     """Verify password against hash"""
     return password_hash == hash_password(password)
 
+
 def init_db():
-    """Initialize database with all tables"""
+    """Initialize database with all tables (Auto-adapts to PostgreSQL / SQLite)."""
     conn = get_db_connection()
     c = conn.cursor()
-    
-    # Users table with authentication
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            full_name TEXT NOT NULL,
-            embedding BLOB,
-            role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user', 'manager')),
-            status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
-            is_verified INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Create indexes for users table
-    c.execute('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)')
-    
-    # Attendance table with status and detailed tracking
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS attendance (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            date TEXT NOT NULL,
-            time_in TEXT,
-            time_out TEXT,
-            status TEXT DEFAULT 'present' CHECK(status IN ('present', 'late', 'absent', 'half_day')),
-            notes TEXT,
-            marked_by TEXT DEFAULT 'face_recognition',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id),
-            UNIQUE(user_id, date)
-        )
-    ''')
-    
-    # Create indexes for attendance table
-    c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_user_id ON attendance(user_id)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_status ON attendance(status)')
-    
-    # Working hours configuration
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS working_hours (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            day_of_week INTEGER,
-            start_time TEXT,
-            end_time TEXT,
-            is_working_day INTEGER DEFAULT 1
-        )
-    ''')
-    
-    # Set default working hours (Monday-Friday, 9 AM - 5 PM)
-    for day in range(5):  # 0-4 = Monday-Friday
+
+    if conn.is_postgres:
+        # ── PostgreSQL DDL ──
         c.execute('''
-            INSERT OR IGNORE INTO working_hours (day_of_week, start_time, end_time, is_working_day)
-            VALUES (?, '09:00:00', '17:00:00', 1)
-        ''', (day,))
-    
-    # Weekend (Saturday=5, Sunday=6)
-    for day in [5, 6]:
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                full_name TEXT NOT NULL,
+                embedding TEXT,
+                role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user', 'manager')),
+                status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
+                is_verified INTEGER DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)')
+
         c.execute('''
-            INSERT OR IGNORE INTO working_hours (day_of_week, start_time, end_time, is_working_day)
-            VALUES (?, '00:00:00', '00:00:00', 0)
-        ''', (day,))
-    
-    # Attendance reports table
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS attendance_reports (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            report_type TEXT CHECK(report_type IN ('daily', 'weekly', 'monthly')),
-            report_date TEXT NOT NULL,
-            total_present INTEGER DEFAULT 0,
-            total_absent INTEGER DEFAULT 0,
-            total_late INTEGER DEFAULT 0,
-            total_half_day INTEGER DEFAULT 0,
-            report_data TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )
-    ''')
-    
-    # Create index for reports table
-    c.execute('CREATE INDEX IF NOT EXISTS idx_reports_date ON attendance_reports(report_date)')
-    
-    # Email notifications log
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS email_notifications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            email_type TEXT CHECK(email_type IN ('attendance_marked', 'absent_notification', 'daily_summary', 'weekly_summary')),
-            recipient_email TEXT NOT NULL,
-            subject TEXT,
-            status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'sent', 'failed')),
-            error_message TEXT,
-            sent_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )
-    ''')
-    
-    # Create indexes for email notifications
-    c.execute('CREATE INDEX IF NOT EXISTS idx_emails_status ON email_notifications(status)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_emails_type ON email_notifications(email_type)')
-    
-    # Audit log for tracking actions
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS audit_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            action TEXT NOT NULL,
-            resource_type TEXT,
-            resource_id INTEGER,
-            details TEXT,
-            ip_address TEXT,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Create indexes for audit logs
-    c.execute('CREATE INDEX IF NOT EXISTS idx_audit_user_id ON audit_logs(user_id)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs(timestamp)')
-    
+            CREATE TABLE IF NOT EXISTS attendance (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                date TEXT NOT NULL,
+                time_in TEXT,
+                time_out TEXT,
+                status TEXT DEFAULT 'present' CHECK(status IN ('present', 'late', 'absent', 'half_day')),
+                notes TEXT,
+                marked_by TEXT DEFAULT 'face_recognition',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, date)
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_user_id ON attendance(user_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_status ON attendance(status)')
+
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS working_hours (
+                id SERIAL PRIMARY KEY,
+                day_of_week INTEGER UNIQUE,
+                start_time TEXT,
+                end_time TEXT,
+                is_working_day INTEGER DEFAULT 1
+            )
+        ''')
+        for day in range(5):
+            c.execute('''
+                INSERT INTO working_hours (day_of_week, start_time, end_time, is_working_day)
+                VALUES (%s, '09:00:00', '17:00:00', 1)
+                ON CONFLICT (day_of_week) DO NOTHING
+            ''', (day,))
+        for day in [5, 6]:
+            c.execute('''
+                INSERT INTO working_hours (day_of_week, start_time, end_time, is_working_day)
+                VALUES (%s, '00:00:00', '00:00:00', 0)
+                ON CONFLICT (day_of_week) DO NOTHING
+            ''', (day,))
+
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS attendance_reports (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                report_type TEXT CHECK(report_type IN ('daily', 'weekly', 'monthly')),
+                report_date TEXT NOT NULL,
+                total_present INTEGER DEFAULT 0,
+                total_absent INTEGER DEFAULT 0,
+                total_late INTEGER DEFAULT 0,
+                total_half_day INTEGER DEFAULT 0,
+                report_data TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, report_date)
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_reports_date ON attendance_reports(report_date)')
+
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS email_notifications (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                email_type TEXT CHECK(email_type IN ('attendance_marked', 'absent_notification', 'daily_summary', 'weekly_summary')),
+                recipient_email TEXT NOT NULL,
+                subject TEXT,
+                status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'sent', 'failed')),
+                error_message TEXT,
+                sent_at TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_emails_status ON email_notifications(status)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_emails_type ON email_notifications(email_type)')
+
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER,
+                action TEXT NOT NULL,
+                resource_type TEXT,
+                resource_id INTEGER,
+                details TEXT,
+                ip_address TEXT,
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_audit_user_id ON audit_logs(user_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs(timestamp)')
+
+    else:
+        # ── SQLite DDL ──
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                full_name TEXT NOT NULL,
+                embedding TEXT,
+                role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user', 'manager')),
+                status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
+                is_verified INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)')
+
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS attendance (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                date TEXT NOT NULL,
+                time_in TEXT,
+                time_out TEXT,
+                status TEXT DEFAULT 'present' CHECK(status IN ('present', 'late', 'absent', 'half_day')),
+                notes TEXT,
+                marked_by TEXT DEFAULT 'face_recognition',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id),
+                UNIQUE(user_id, date)
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_user_id ON attendance(user_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_status ON attendance(status)')
+
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS working_hours (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                day_of_week INTEGER,
+                start_time TEXT,
+                end_time TEXT,
+                is_working_day INTEGER DEFAULT 1
+            )
+        ''')
+        for day in range(5):
+            c.execute('''
+                INSERT OR IGNORE INTO working_hours (day_of_week, start_time, end_time, is_working_day)
+                VALUES (?, '09:00:00', '17:00:00', 1)
+            ''', (day,))
+        for day in [5, 6]:
+            c.execute('''
+                INSERT OR IGNORE INTO working_hours (day_of_week, start_time, end_time, is_working_day)
+                VALUES (?, '00:00:00', '00:00:00', 0)
+            ''', (day,))
+
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS attendance_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                report_type TEXT CHECK(report_type IN ('daily', 'weekly', 'monthly')),
+                report_date TEXT NOT NULL,
+                total_present INTEGER DEFAULT 0,
+                total_absent INTEGER DEFAULT 0,
+                total_late INTEGER DEFAULT 0,
+                total_half_day INTEGER DEFAULT 0,
+                report_data TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id),
+                UNIQUE(user_id, report_date)
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_reports_date ON attendance_reports(report_date)')
+
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS email_notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                email_type TEXT CHECK(email_type IN ('attendance_marked', 'absent_notification', 'daily_summary', 'weekly_summary')),
+                recipient_email TEXT NOT NULL,
+                subject TEXT,
+                status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'sent', 'failed')),
+                error_message TEXT,
+                sent_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_emails_status ON email_notifications(status)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_emails_type ON email_notifications(email_type)')
+
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                action TEXT NOT NULL,
+                resource_type TEXT,
+                resource_id INTEGER,
+                details TEXT,
+                ip_address TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_audit_user_id ON audit_logs(user_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs(timestamp)')
+
     conn.commit()
     conn.close()
-    print("Database initialized successfully")
+    engine_name = "Render PostgreSQL" if IS_POSTGRES else "Local SQLite"
+    print(f"Database initialized successfully [{engine_name}]")
+
 
 # ============================================
 # USER MANAGEMENT
@@ -173,23 +374,34 @@ def create_user(username, email, password, full_name, role='user'):
     try:
         conn = get_db_connection()
         c = conn.cursor()
-        
         password_hash = hash_password(password)
-        c.execute('''
-            INSERT INTO users (username, email, password_hash, full_name, role)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (username, email, password_hash, full_name, role))
-        
-        user_id = c.lastrowid
+
+        if conn.is_postgres:
+            c.execute('''
+                INSERT INTO users (username, email, password_hash, full_name, role)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+            ''', (username, email, password_hash, full_name, role))
+            res = c.fetchone()
+            user_id = res['id'] if res else None
+        else:
+            c.execute('''
+                INSERT INTO users (username, email, password_hash, full_name, role)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (username, email, password_hash, full_name, role))
+            user_id = c.lastrowid
+
         conn.commit()
         conn.close()
         return user_id
-    except sqlite3.IntegrityError as e:
-        if 'username' in str(e):
+    except Exception as e:
+        err = str(e).lower()
+        if 'username' in err:
             return None, 'Username already exists'
-        elif 'email' in str(e):
+        elif 'email' in err:
             return None, 'Email already registered'
         return None, str(e)
+
 
 def get_user_by_username(username):
     """Get user by username"""
@@ -198,7 +410,8 @@ def get_user_by_username(username):
     c.execute('SELECT * FROM users WHERE username = ?', (username,))
     user = c.fetchone()
     conn.close()
-    return dict(user) if user else None
+    return user
+
 
 def get_user_by_email(email):
     """Get user by email"""
@@ -207,7 +420,8 @@ def get_user_by_email(email):
     c.execute('SELECT * FROM users WHERE email = ?', (email,))
     user = c.fetchone()
     conn.close()
-    return dict(user) if user else None
+    return user
+
 
 def get_user_by_id(user_id):
     """Get user by ID"""
@@ -216,7 +430,8 @@ def get_user_by_id(user_id):
     c.execute('SELECT * FROM users WHERE id = ?', (user_id,))
     user = c.fetchone()
     conn.close()
-    return dict(user) if user else None
+    return user
+
 
 def authenticate_user(username, password):
     """Authenticate user with username and password"""
@@ -227,6 +442,7 @@ def authenticate_user(username, password):
         return user
     return None
 
+
 def update_user_embedding(user_id, embedding_vector):
     """Update user's face embedding"""
     embedding_str = json.dumps(embedding_vector.tolist())
@@ -236,15 +452,16 @@ def update_user_embedding(user_id, embedding_vector):
     conn.commit()
     conn.close()
 
+
 def get_all_users():
     """Get all active users"""
     conn = get_db_connection()
     c = conn.cursor()
-    c.execute('SELECT id, username, email, full_name, role, embedding FROM users WHERE status = "active"')
-    cols = [desc[0] for desc in c.description]
-    users = [dict(zip(cols, row)) for row in c.fetchall()]
+    c.execute('SELECT id, username, email, full_name, role, embedding FROM users WHERE status = \'active\'')
+    users = c.fetchall()
     conn.close()
     return users
+
 
 def get_all_users_admin():
     """Get all users for administrator management."""
@@ -255,10 +472,10 @@ def get_all_users_admin():
         FROM users
         ORDER BY created_at DESC, id DESC
     ''')
-    cols = [desc[0] for desc in c.description]
-    users = [dict(zip(cols, row)) for row in c.fetchall()]
+    users = c.fetchall()
     conn.close()
     return users
+
 
 def ensure_default_admin():
     """Create the default administrator account from environment variables if needed."""
@@ -289,6 +506,7 @@ def ensure_default_admin():
     ''', (admin_username, admin_email, hash_password(admin_password), admin_full_name))
     conn.commit()
     conn.close()
+
 
 # ============================================
 # ATTENDANCE MANAGEMENT
@@ -327,7 +545,7 @@ def get_latest_attendance_for_user(user_id):
     ''', (user_id,))
     record = c.fetchone()
     conn.close()
-    return dict(record) if record else None
+    return record
 
 
 def mark_attendance(user_id, attendance_date=None, attendance_time=None, status='present'):
@@ -366,6 +584,7 @@ def mark_attendance(user_id, attendance_date=None, attendance_time=None, status=
         conn.close()
         return True, 'Attendance marked'
 
+
 def get_attendance_by_user(user_id, limit=50):
     """Get attendance records for a user"""
     conn = get_db_connection()
@@ -378,11 +597,10 @@ def get_attendance_by_user(user_id, limit=50):
         ORDER BY a.date DESC
         LIMIT ?
     ''', (user_id, limit))
-    
-    cols = [desc[0] for desc in c.description]
-    records = [dict(zip(cols, row)) for row in c.fetchall()]
+    records = c.fetchall()
     conn.close()
     return records
+
 
 def get_attendance_records(start_date=None, end_date=None):
     """Get all attendance records with optional date filter"""
@@ -405,10 +623,10 @@ def get_attendance_records(start_date=None, end_date=None):
             ORDER BY a.date DESC, a.time_in DESC
         ''')
     
-    cols = [desc[0] for desc in c.description]
-    records = [dict(zip(cols, row)) for row in c.fetchall()]
+    records = c.fetchall()
     conn.close()
     return records
+
 
 def get_all_attendance_admin(limit=500):
     """Get all attendance records for administrator views."""
@@ -421,10 +639,10 @@ def get_all_attendance_admin(limit=500):
         ORDER BY a.date DESC, a.time_in DESC, a.created_at DESC
         LIMIT ?
     ''', (limit,))
-    cols = [desc[0] for desc in c.description]
-    records = [dict(zip(cols, row)) for row in c.fetchall()]
+    records = c.fetchall()
     conn.close()
     return records
+
 
 def get_attendance_today():
     """Get today's attendance records"""
@@ -438,18 +656,15 @@ def get_attendance_today():
         WHERE a.date = ?
         ORDER BY a.time_in DESC
     ''', (today,))
-    
-    cols = [desc[0] for desc in c.description]
-    records = [dict(zip(cols, row)) for row in c.fetchall()]
+    records = c.fetchall()
     conn.close()
     return records
+
 
 def check_and_mark_absent(user_id, date):
     """Mark user as absent if not marked by end of day"""
     conn = get_db_connection()
     c = conn.cursor()
-    
-    # Check if already marked
     c.execute('SELECT id FROM attendance WHERE user_id = ? AND date = ?', (user_id, date))
     existing = c.fetchone()
     
@@ -465,6 +680,7 @@ def check_and_mark_absent(user_id, date):
     conn.close()
     return False
 
+
 # ============================================
 # REPORTING
 # ============================================
@@ -479,14 +695,16 @@ def generate_daily_report(user_id, report_date):
         FROM attendance
         WHERE user_id = ? AND date = ? AND status = 'present'
     ''', (user_id, report_date))
-    present = c.fetchone()['total_present']
+    present_row = c.fetchone()
+    present = present_row['total_present'] if present_row else 0
     
     c.execute('''
         SELECT COUNT(*) as total_late
         FROM attendance
         WHERE user_id = ? AND date = ? AND status = 'late'
     ''', (user_id, report_date))
-    late = c.fetchone()['total_late']
+    late_row = c.fetchone()
+    late = late_row['total_late'] if late_row else 0
     
     report_data = {
         'user_id': user_id,
@@ -496,16 +714,26 @@ def generate_daily_report(user_id, report_date):
         'absent': 1 - (present or late),
         'generated_at': datetime.now(IST).isoformat()
     }
-    
-    c.execute('''
-        INSERT OR REPLACE INTO attendance_reports 
-        (user_id, report_type, report_date, total_present, total_late, report_data)
-        VALUES (?, 'daily', ?, ?, ?, ?)
-    ''', (user_id, report_date, present, late, json.dumps(report_data)))
+
+    if conn.is_postgres:
+        c.execute('''
+            INSERT INTO attendance_reports 
+            (user_id, report_type, report_date, total_present, total_late, report_data)
+            VALUES (%s, 'daily', %s, %s, %s, %s)
+            ON CONFLICT (user_id, report_date) 
+            DO UPDATE SET total_present = EXCLUDED.total_present, total_late = EXCLUDED.total_late, report_data = EXCLUDED.report_data
+        ''', (user_id, report_date, present, late, json.dumps(report_data)))
+    else:
+        c.execute('''
+            INSERT OR REPLACE INTO attendance_reports 
+            (user_id, report_type, report_date, total_present, total_late, report_data)
+            VALUES (?, 'daily', ?, ?, ?, ?)
+        ''', (user_id, report_date, present, late, json.dumps(report_data)))
     
     conn.commit()
     conn.close()
     return report_data
+
 
 def get_user_monthly_summary(user_id, year, month):
     """Get user's monthly attendance summary"""
@@ -537,6 +765,7 @@ def get_user_monthly_summary(user_id, year, month):
         'total_days': result['total_days'] if result else 0
     }
 
+
 # ============================================
 # AUDIT LOGGING
 # ============================================
@@ -552,6 +781,7 @@ def log_audit(user_id, action, resource_type=None, resource_id=None, details=Non
     conn.commit()
     conn.close()
 
+
 # ============================================
 # EMAIL NOTIFICATION TRACKING
 # ============================================
@@ -560,15 +790,25 @@ def log_email_notification(user_id, email_type, recipient_email, subject):
     """Log email notification attempt"""
     conn = get_db_connection()
     c = conn.cursor()
-    c.execute('''
-        INSERT INTO email_notifications (user_id, email_type, recipient_email, subject)
-        VALUES (?, ?, ?, ?)
-    ''', (user_id, email_type, recipient_email, subject))
+    if conn.is_postgres:
+        c.execute('''
+            INSERT INTO email_notifications (user_id, email_type, recipient_email, subject)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id
+        ''', (user_id, email_type, recipient_email, subject))
+        res = c.fetchone()
+        notification_id = res['id'] if res else None
+    else:
+        c.execute('''
+            INSERT INTO email_notifications (user_id, email_type, recipient_email, subject)
+            VALUES (?, ?, ?, ?)
+        ''', (user_id, email_type, recipient_email, subject))
+        notification_id = c.lastrowid
     
-    notification_id = c.lastrowid
     conn.commit()
     conn.close()
     return notification_id
+
 
 def update_email_notification_status(notification_id, status, error_message=None):
     """Update email notification status"""
@@ -582,6 +822,7 @@ def update_email_notification_status(notification_id, status, error_message=None
     conn.commit()
     conn.close()
 
+
 def get_pending_emails():
     """Get pending email notifications"""
     conn = get_db_connection()
@@ -591,11 +832,10 @@ def get_pending_emails():
         WHERE status = 'pending'
         ORDER BY created_at ASC
     ''')
-    
-    cols = [desc[0] for desc in c.description]
-    records = [dict(zip(cols, row)) for row in c.fetchall()]
+    records = c.fetchall()
     conn.close()
     return records
+
 
 def update_user_password(user_id, new_password):
     """Update user password"""
@@ -610,4 +850,3 @@ def update_user_password(user_id, new_password):
     conn.commit()
     conn.close()
     return c.rowcount > 0
-

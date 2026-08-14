@@ -29,6 +29,7 @@ opencv-python-headless==4.8.1.78
 pillow==10.2.0
 
 # DB + UTILS
+psycopg2-binary==2.9.9
 packaging==23.2
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.0
