@@ -140,15 +140,15 @@ def start_scheduler():
             replace_existing=True
         )
 
-        # ✅ Start only once
+        # Start only once
         if not scheduler.running:
             scheduler.start()
-            logger.info('✅ Scheduler started successfully')
+            logger.info('[OK] Scheduler started successfully')
 
         return True
 
     except Exception as e:
-        logger.error(f'❌ Error starting scheduler: {str(e)}')
+        logger.error(f'[ERROR] Error starting scheduler: {str(e)}')
         return False
 
 

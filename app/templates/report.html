@@ -381,7 +381,9 @@
     const month = thisMonthStr();
     const monthRecs = allRecords.filter(r => r.date.startsWith(month));
 
-    const present = monthRecs.filter(r => (r.status || 'present') === 'present' || (r.status || '') === 'late').length;
+    const present = monthRecs.filter(r => (r.status || 'present') === 'present').length;
+    const late    = monthRecs.filter(r => (r.status || '') === 'late').length;
+    const halfDay = monthRecs.filter(r => (r.status || '') === 'half_day').length;
     const absent  = monthRecs.filter(r => (r.status || '') === 'absent').length;
 
     // Working days this month so far (Mon–Fri up to today)
@@ -393,9 +395,10 @@
       if (dow !== 0 && dow !== 6) workingDays++;
     }
 
-    const rate = workingDays > 0 ? Math.round((present / workingDays) * 100) : 0;
+    const effectiveAttended = present + late + (halfDay * 0.5);
+    const rate = workingDays > 0 ? Math.min(100, Math.round((effectiveAttended / workingDays) * 100)) : 0;
 
-    // Current streak — count consecutive present days going back from today
+    // Current streak — count consecutive attended days going back from today
     const sorted = [...allRecords]
       .filter(r => (r.status || 'present') !== 'absent')
       .sort((a,b) => b.date.localeCompare(a.date));
@@ -409,10 +412,10 @@
       else break;
     }
 
-    $('statPresent').textContent = present;
+    $('statPresent').textContent = present + late + halfDay;
     $('statPresentSub').textContent = `of ${workingDays} working days`;
     $('statAbsent').textContent = absent;
-    $('statAbsentSub').textContent = workingDays > 0 ? `${workingDays - present} days missed` : 'days missed';
+    $('statAbsentSub').textContent = workingDays > 0 ? `${absent} days missed` : 'days missed';
     $('statStreak').textContent = streak;
     $('statRate').textContent = rate + '%';
   }
@@ -429,16 +432,47 @@
 
     $('tableBody').innerHTML = slice.map(r => {
       const status  = r.status || 'present';
-      const timeIn  = fmtTime(r.time_in || r.time);
+      const timeIn  = r.status === 'absent' && !r.time_in && !r.time ? '--' : fmtTime(r.time_in || r.time);
       const timeOut = fmtTime(r.time_out);
 
-      // Estimated working hours (if both check-in and check-out exist)
+      // Smart Working Hours Calculation
       let hrs = '--';
-      if (r.time_in && r.time_out) {
+      let hrsSub = '';
+
+      if (status === 'absent') {
+        hrs = '<span style="color:#ef4444;font-weight:600;">0h 00m</span>';
+        hrsSub = 'Absent';
+      } else if (r.time_in && r.time_out) {
         const [ih, im] = r.time_in.split(':').map(Number);
         const [oh, om] = r.time_out.split(':').map(Number);
         const mins = (oh * 60 + om) - (ih * 60 + im);
-        if (mins > 0) hrs = `${Math.floor(mins/60)}h ${mins%60}m`;
+        if (mins > 0) {
+          hrs = `<span style="font-weight:600;color:#0f172a;">${Math.floor(mins/60)}h ${String(mins%60).padStart(2,'0')}m</span>`;
+          hrsSub = 'Punch-out recorded';
+        } else {
+          hrs = '<span style="font-weight:600;color:#0f172a;">8h 00m</span>';
+          hrsSub = 'Standard Shift';
+        }
+      } else if (status === 'half_day') {
+        hrs = '<span style="font-weight:600;color:#0284c7;">4h 00m</span>';
+        hrsSub = 'Half Day Shift';
+      } else if (status === 'late') {
+        let lateHours = '7h 30m';
+        if (r.time_in) {
+          const [ih, im] = r.time_in.split(':').map(Number);
+          const endMins = 17 * 60; // 17:00 (5:00 PM)
+          const inMins = ih * 60 + im;
+          const diffMins = Math.max(0, endMins - inMins);
+          if (diffMins > 0 && diffMins <= 8 * 60) {
+            lateHours = `${Math.floor(diffMins/60)}h ${String(diffMins%60).padStart(2,'0')}m`;
+          }
+        }
+        hrs = `<span style="font-weight:600;color:#d97706;">${lateHours}</span>`;
+        hrsSub = 'Late Entry';
+      } else {
+        // Standard full day present
+        hrs = '<span style="font-weight:600;color:#16a34a;">8h 00m</span>';
+        hrsSub = 'Full Day Shift';
       }
 
       const badge = {
@@ -456,11 +490,16 @@
         <td>
           <div class="rp-time-block">
             <span class="t-in">${timeIn}</span>
-            <span class="t-label">Check-in</span>
+            <span class="t-label">${status === 'absent' ? 'No punch' : 'Check-in'}</span>
           </div>
         </td>
         <td>${badge}</td>
-        <td style="color:#64748b;font-size:.82rem">${hrs}</td>
+        <td>
+          <div class="rp-time-block">
+            ${hrs}
+            <span class="t-label" style="font-size:0.68rem;color:#94a3b8;">${hrsSub}</span>
+          </div>
+        </td>
       </tr>`;
     }).join('');
 

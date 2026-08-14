@@ -247,18 +247,20 @@ def attendance():
             time_val = r.get('time_in') or r.get('time')
             raw_status = r.get('status')
 
-            # Resolve status for old records using 9-to-5 corporate timing
-            if raw_status in (None, '', 'present') and time_val:
-                if time_val > '17:00:00':
-                    resolved_status = raw_status or 'present'  # edge: keep as stored
-                elif time_val > '13:00:00':
-                    resolved_status = 'half_day'
-                elif time_val > '09:15:00':
+            # Accurately resolve status for every time window
+            if raw_status == 'absent' or not time_val:
+                resolved_status = 'absent'
+            elif raw_status in ('half_day', 'late'):
+                resolved_status = raw_status
+            else:
+                # If raw_status is present/None, resolve accurately from check-in time
+                if time_val <= '09:15:00':
+                    resolved_status = 'present'
+                elif time_val <= '13:00:00':
                     resolved_status = 'late'
                 else:
-                    resolved_status = 'present'
-            else:
-                resolved_status = raw_status or 'present'
+                    # After 1:00 PM (including evening/night 11:14 PM) is Half Day
+                    resolved_status = 'half_day'
 
             res.append({
                 'date': r['date'],
