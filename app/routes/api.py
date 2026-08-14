@@ -224,15 +224,26 @@ def attendance():
         user_data = get_user_by_id(current_user.id)
         display_name = user_data.get('full_name') if user_data else current_user.username
 
-        res = [{
-            'date': r['date'],
-            'name': r.get('full_name') or display_name,
-            'time': r['time_in'],
-            'time_in': r['time_in'],
-            'time_out': r.get('time_out'),
-            'marked_at': f"{r['date']}T{r['time_in']}",
-            'status': r.get('status', 'present')
-        } for r in records]
+        res = []
+        for r in records:
+            time_val = r.get('time_in') or r.get('time')
+            raw_status = r.get('status')
+            
+            # If status is present/missing but time was after 09:15:00 AM, accurately reflect 'late'
+            if raw_status in (None, '', 'present') and time_val and time_val > '09:15:00':
+                resolved_status = 'late'
+            else:
+                resolved_status = raw_status or 'present'
+
+            res.append({
+                'date': r['date'],
+                'name': r.get('full_name') or display_name,
+                'time': time_val,
+                'time_in': time_val,
+                'time_out': r.get('time_out'),
+                'marked_at': f"{r['date']}T{time_val}",
+                'status': resolved_status
+            })
 
         return jsonify({'success': True, 'data': res})
 
