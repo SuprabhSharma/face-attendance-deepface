@@ -117,17 +117,18 @@ def start_scheduler():
             logger.info("⚠ Scheduler already initialized. Skipping...")
             return True
 
-        # Schedule jobs
+        # Mark absentees at 5:00 PM IST sharp (shift end)
         scheduler.add_job(
             AttendanceScheduler.mark_end_of_day_absentees,
-            CronTrigger(hour=17, minute=30, day_of_week='0-4'),
+            CronTrigger(hour=17, minute=0, day_of_week='0-4'),
             id='mark_absentees',
             replace_existing=True
         )
 
+        # Send daily summaries at 5:15 PM IST (after absentees are marked)
         scheduler.add_job(
             AttendanceScheduler.send_daily_summaries,
-            CronTrigger(hour=18, minute=0),
+            CronTrigger(hour=17, minute=15, day_of_week='0-4'),
             id='send_summaries',
             replace_existing=True
         )

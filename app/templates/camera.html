@@ -277,7 +277,7 @@ function sendEmail(name, email, date, time) {
             
             document.getElementById('loadingSpinner').classList.add('d-none');
 
-            if (data.success && data.found && data.status !== 'duplicate' && data.status !== 'office_closed') {
+            if (data.success && data.found && ['present','late','half_day'].includes(data.status)) {
 
                 // SUCCESS CASE — attendance marked
                 document.getElementById('successOverlay').classList.remove('d-none');
@@ -305,9 +305,13 @@ function sendEmail(name, email, date, time) {
                     loadTodayAttendance();
                 }, 2000);
 
+            } else if (data.status === 'already_absent') {
+
+                notifyError(data.message || "You have already been marked ABSENT for today. Contact your administrator.");
+
             } else if (data.status === 'office_closed') {
 
-                notifyError(data.message || "Office hours are 06:00 AM - 08:00 PM. Check-in not allowed outside this window.");
+                notifyError(data.message || "Office hours are 9:00 AM - 5:00 PM IST. Device is locked.");
 
             } else if (data.status === 'duplicate') {
 
@@ -318,7 +322,7 @@ function sendEmail(name, email, date, time) {
                 notifyError(data.message || "Face not recognized. Please try again.");
 
             } else {
-                notifyError(data.message || "Could not recognize the face. Please try again.");
+                notifyError(data.message || "Could not process attendance. Please try again.");
 
             }
         } catch (err) {

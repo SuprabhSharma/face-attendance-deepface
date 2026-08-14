@@ -193,6 +193,15 @@ def recognize():
                     'marked_at': attendance_time,
                     'message': f"Welcome {display_name}! Attendance marked at {attendance_time} IST"
                 })
+            elif status == 'already_absent':
+                return jsonify({
+                    'success': True,
+                    'found': True,
+                    'user_id': user_id,
+                    'user_name': display_name,
+                    'status': 'already_absent',
+                    'message': f"You have already been marked ABSENT for today. Contact your administrator to override."
+                })
             elif status in ('office_closed', 'office_closed_early'):
                 return jsonify({
                     'success': True,
@@ -200,7 +209,7 @@ def recognize():
                     'user_id': user_id,
                     'user_name': display_name,
                     'status': 'office_closed',
-                    'message': 'Office hours are 06:00 AM - 08:00 PM IST. Attendance cannot be marked outside this window.'
+                    'message': 'Office hours are 9:00 AM - 5:00 PM IST. Attendance device is locked outside this window.'
                 })
             else:
                 return jsonify({
@@ -238,10 +247,10 @@ def attendance():
             time_val = r.get('time_in') or r.get('time')
             raw_status = r.get('status')
 
-            # Resolve status using same corporate time windows for old records
+            # Resolve status for old records using 9-to-5 corporate timing
             if raw_status in (None, '', 'present') and time_val:
-                if time_val > '20:00:00' or time_val < '06:00:00':
-                    resolved_status = raw_status or 'present'  # keep as-is for edge cases
+                if time_val > '17:00:00':
+                    resolved_status = raw_status or 'present'  # edge: keep as stored
                 elif time_val > '13:00:00':
                     resolved_status = 'half_day'
                 elif time_val > '09:15:00':
