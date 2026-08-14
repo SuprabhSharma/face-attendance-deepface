@@ -549,11 +549,24 @@ def get_latest_attendance_for_user(user_id):
 
 
 def mark_attendance(user_id, attendance_date=None, attendance_time=None, status=None):
-    """Mark attendance for a user, automatically determining late status based on check-in time."""
+    """
+    Mark attendance with corporate-grade biometric device timing logic.
+    
+    Shift:   09:00 AM - 06:00 PM IST (9 hour shift, 1 hour lunch)
+    Grace:   15 minutes (so on-time cutoff = 09:15 AM)
+    Window:  Check-in only allowed between 06:00 AM - 08:00 PM IST
+    
+    Status Rules (based on check-in time):
+      <= 09:15  ->  present   (on-time, within grace)
+      09:16-13:00 -> late     (late arrival, still counts as full day)
+      13:01-18:00 -> half_day (only partial shift remaining)
+      > 18:00   ->  REJECTED  (outside office hours, device locked)
+      < 06:00   ->  REJECTED  (office not open yet)
+    """
     normalized_datetime, attendance_date, attendance_time = _normalize_attendance_datetime(
         attendance_date, attendance_time
     )
-    
+
     conn = get_db_connection()
     c = conn.cursor()
 
@@ -574,35 +587,60 @@ def mark_attendance(user_id, attendance_date=None, attendance_time=None, status=
     if existing:
         conn.close()
         return False, normalized_datetime.isoformat()
-    else:
-        # Determine status if not explicitly provided
-        if not status:
-            # Check working hours start time or default to 09:15:00 grace period
-            day_of_week = normalized_datetime.weekday() # 0 = Monday
-            c.execute('SELECT start_time FROM working_hours WHERE day_of_week = ? AND is_working_day = 1', (day_of_week,))
-            wh = c.fetchone()
-            cutoff_time = '09:15:00'
-            if wh and wh.get('start_time'):
-                start_h, start_m, start_s = [int(x) for x in wh['start_time'].split(':')]
-                # 15 min grace period
-                grace_mins = start_m + 15
-                grace_h = start_h + (grace_mins // 60)
-                grace_m = grace_mins % 60
-                cutoff_time = f"{grace_h:02d}:{grace_m:02d}:00"
 
-            if attendance_time > cutoff_time:
-                status = 'late'
-            else:
-                status = 'present'
+    # --- Corporate biometric device status determination ---
+    if not status:
+        # Fetch configured shift times or use defaults
+        day_of_week = normalized_datetime.weekday()  # 0=Mon
+        c.execute('SELECT start_time, end_time FROM working_hours WHERE day_of_week = ? AND is_working_day = 1', (day_of_week,))
+        wh = c.fetchone()
 
-        # Create new record
-        c.execute('''
-            INSERT INTO attendance (user_id, date, time_in, status)
-            VALUES (?, ?, ?, ?)
-        ''', (user_id, attendance_date, attendance_time, status))
-        conn.commit()
-        conn.close()
-        return True, status
+        shift_start = '09:00:00'   # Default shift start
+        shift_end   = '18:00:00'   # Default shift end (6 PM)
+        if wh:
+            shift_start = wh.get('start_time') or shift_start
+            shift_end   = wh.get('end_time')   or shift_end
+
+        # Parse shift start for grace period calculation
+        sh, sm = int(shift_start.split(':')[0]), int(shift_start.split(':')[1])
+        grace_total_m = sm + 15
+        grace_h = sh + (grace_total_m // 60)
+        grace_m = grace_total_m % 60
+        grace_cutoff   = f"{grace_h:02d}:{grace_m:02d}:00"    # 09:15:00
+        halfday_cutoff = '13:00:00'                             # 1:00 PM
+        window_open    = '06:00:00'                             # Earliest allowed
+        window_close   = '20:00:00'                             # Latest allowed
+
+        # REJECT if outside check-in window entirely
+        if attendance_time < window_open:
+            conn.close()
+            return False, 'office_closed_early'
+        if attendance_time > window_close:
+            conn.close()
+            return False, 'office_closed'
+
+        # Determine status based on time
+        if attendance_time > shift_end:
+            # After shift end (6 PM - 8 PM): mark as half_day (came but shift is over)
+            status = 'half_day'
+        elif attendance_time > halfday_cutoff:
+            # After 1 PM: only partial shift remaining
+            status = 'half_day'
+        elif attendance_time > grace_cutoff:
+            # After 9:15 AM but before 1 PM: late arrival
+            status = 'late'
+        else:
+            # Before or at 9:15 AM: on time
+            status = 'present'
+
+    # Create new record
+    c.execute('''
+        INSERT INTO attendance (user_id, date, time_in, status)
+        VALUES (?, ?, ?, ?)
+    ''', (user_id, attendance_date, attendance_time, status))
+    conn.commit()
+    conn.close()
+    return True, status
 
 
 def get_attendance_by_user(user_id, limit=50):

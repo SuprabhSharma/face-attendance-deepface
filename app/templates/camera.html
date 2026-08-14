@@ -225,17 +225,26 @@ function sendEmail(name, email, date, time) {
                 } else {
                     container.innerHTML = `
                         <div class="list-group">
-                            ${todayRecords.map(r => `
+                            ${todayRecords.map(r => {
+                                const badgeMap = {
+                                    'present':  'bg-success',
+                                    'late':     'bg-warning text-dark',
+                                    'half_day': 'bg-info text-dark',
+                                    'absent':   'bg-danger'
+                                };
+                                const bc = badgeMap[r.status] || 'bg-success';
+                                const label = (r.status || 'present').replace('_', ' ');
+                                return `
                                 <div class="list-group-item border-0 px-0 py-2 d-flex justify-content-between align-items-center">
                                     <div class="d-flex align-items-center">
                                         <small class="fw-semibold me-2">${r.name || 'Current User'}</small>
-                                        <span class="badge ${r.status === 'late' ? 'bg-warning text-dark' : 'bg-success'} py-1 px-2" style="font-size:0.68rem;text-transform:capitalize;">${r.status || 'present'}</span>
+                                        <span class="badge ${bc} py-1 px-2" style="font-size:0.68rem;text-transform:capitalize;">${label}</span>
                                     </div>
                                     <div>
                                         <small class="text-muted">${r.time || r.time_in || '--'}</small>
                                     </div>
-                                </div>
-                            `).join('')}
+                                </div>`;
+                            }).join('')}
                         </div>
                     `;
                 }
@@ -268,12 +277,16 @@ function sendEmail(name, email, date, time) {
             
             document.getElementById('loadingSpinner').classList.add('d-none');
 
-            if (data.success && data.found && data.status !== 'duplicate') {
+            if (data.success && data.found && data.status !== 'duplicate' && data.status !== 'office_closed') {
 
-                // SUCCESS CASE
+                // SUCCESS CASE — attendance marked
                 document.getElementById('successOverlay').classList.remove('d-none');
-                const isLate = data.status === 'late';
-                const statusMsg = isLate ? 'Marked LATE (after 09:15 AM)' : 'Marked PRESENT';
+                let statusMsg = 'Marked PRESENT (On-Time)';
+                if (data.status === 'half_day') {
+                    statusMsg = 'Marked HALF DAY (after 01:00 PM)';
+                } else if (data.status === 'late') {
+                    statusMsg = 'Marked LATE (after 09:15 AM)';
+                }
                 notifySuccess(`Welcome ${data.user_name}! ${statusMsg}.`);
 
                 const userEmail = data.user_email;
@@ -291,6 +304,10 @@ function sendEmail(name, email, date, time) {
                     document.getElementById('successOverlay').classList.add('d-none');
                     loadTodayAttendance();
                 }, 2000);
+
+            } else if (data.status === 'office_closed') {
+
+                notifyError(data.message || "Office hours are 06:00 AM - 08:00 PM. Check-in not allowed outside this window.");
 
             } else if (data.status === 'duplicate') {
 

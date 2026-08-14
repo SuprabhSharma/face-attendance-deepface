@@ -193,6 +193,15 @@ def recognize():
                     'marked_at': attendance_time,
                     'message': f"Welcome {display_name}! Attendance marked at {attendance_time} IST"
                 })
+            elif status in ('office_closed', 'office_closed_early'):
+                return jsonify({
+                    'success': True,
+                    'found': True,
+                    'user_id': user_id,
+                    'user_name': display_name,
+                    'status': 'office_closed',
+                    'message': 'Office hours are 06:00 AM - 08:00 PM IST. Attendance cannot be marked outside this window.'
+                })
             else:
                 return jsonify({
                     'success': True,
@@ -228,10 +237,17 @@ def attendance():
         for r in records:
             time_val = r.get('time_in') or r.get('time')
             raw_status = r.get('status')
-            
-            # If status is present/missing but time was after 09:15:00 AM, accurately reflect 'late'
-            if raw_status in (None, '', 'present') and time_val and time_val > '09:15:00':
-                resolved_status = 'late'
+
+            # Resolve status using same corporate time windows for old records
+            if raw_status in (None, '', 'present') and time_val:
+                if time_val > '20:00:00' or time_val < '06:00:00':
+                    resolved_status = raw_status or 'present'  # keep as-is for edge cases
+                elif time_val > '13:00:00':
+                    resolved_status = 'half_day'
+                elif time_val > '09:15:00':
+                    resolved_status = 'late'
+                else:
+                    resolved_status = 'present'
             else:
                 resolved_status = raw_status or 'present'
 
