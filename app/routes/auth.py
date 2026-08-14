@@ -156,90 +156,83 @@ def admin_login():
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     """
-    User registration route.
-    GET: Display registration form
-    POST: Process new user registration
+    User registration. Accepts only: full_name, email, password, confirm_password.
+    A URL-safe username is auto-derived from the name so the rest of the codebase
+    that references 'username' for login continues to work without changes.
     """
-    # Redirect if already logged in
     if current_user.is_authenticated:
         return redirect(url_for('views.dashboard'))
-    
+
     if request.method == 'POST':
-        full_name = request.form.get('full_name', '').strip()
-        username = request.form.get('username', '').strip()
-        email = request.form.get('email', '').strip().lower()
-        password = request.form.get('password', '')
+        full_name        = request.form.get('full_name', '').strip()
+        email            = request.form.get('email', '').strip().lower()
+        password         = request.form.get('password', '')
         confirm_password = request.form.get('confirm_password', '')
-        agree_terms = request.form.get('agree_terms')
-        
-        # Validate inputs
+
         errors = []
-        
+
+        # Name validation
         if not full_name:
-            errors.append('Full name is required')
+            errors.append('Your name is required.')
         elif len(full_name) < 2 or len(full_name) > 50:
-            errors.append('Full name must be 2-50 characters')
-        
-        if not username:
-            errors.append('Username is required')
-        else:
-            is_valid, msg = validate_username(username)
-            if not is_valid:
-                errors.append(msg)
-        
+            errors.append('Name must be 2–50 characters.')
+
+        # Email validation
         if not email:
-            errors.append('Email is required')
+            errors.append('Email address is required.')
         else:
             is_valid, msg = validate_email(email)
             if not is_valid:
                 errors.append(msg)
-        
+
+        # Password validation
         if not password:
-            errors.append('Password is required')
+            errors.append('Password is required.')
         else:
             is_valid, msg = validate_password(password)
             if not is_valid:
                 errors.append(msg)
-        
+
         if password != confirm_password:
-            errors.append('Passwords do not match')
-        
-        if not agree_terms:
-            errors.append('You must agree to the Terms of Service')
-        
-        # Check if user already exists
+            errors.append('Passwords do not match.')
+
+        # Auto-generate a unique username slug from the full name
+        # e.g. "Suprabh Sharma" → "suprabh_sharma", or "suprabh_sharma2" if taken
+        import re as _re
+        base_username = _re.sub(r'[^a-z0-9]+', '_', full_name.lower()).strip('_')[:20]
+        username = base_username
+        suffix = 1
         if not errors:
-            if get_user_by_username(username):
-                errors.append('Username already taken')
+            while get_user_by_username(username):
+                suffix += 1
+                username = f"{base_username[:17]}_{suffix}"
+
             if get_user_by_email(email):
-                errors.append('Email already registered')
-        
-        # Display errors
+                errors.append('This email is already registered. Please sign in.')
+
         if errors:
             for error in errors:
                 flash(error, 'error')
-            logger.warning(f"Registration attempt with validation errors: {username}")
+            logger.warning(f"Registration errors for email: {email}")
             return redirect(url_for('auth.register'))
-        
-        # Create user
+
         try:
-            user = create_user(
+            create_user(
                 username=username,
                 email=email,
                 password=password,
                 full_name=full_name,
                 role='user'
             )
-            
-            logger.info(f"New user registered: {username} with email: {email}")
-            flash('Account created successfully! Please login.', 'success')
+            logger.info(f"New user registered: {full_name} ({username}) email: {email}")
+            flash('Account created successfully! Please sign in.', 'success')
             return redirect(url_for('auth.login'))
-        
+
         except Exception as e:
             logger.error(f"Error creating user {username}: {str(e)}")
             flash('An error occurred during registration. Please try again.', 'error')
             return redirect(url_for('auth.register'))
-    
+
     return render_template('auth/register.html')
 
 

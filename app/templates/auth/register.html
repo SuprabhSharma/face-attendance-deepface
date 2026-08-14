@@ -1,409 +1,359 @@
 {% extends "base.html" %}
 
-{% block title %}Register Account - FaceAttend System{% endblock %}
+{% block title %}Create Account — FaceAttend{% endblock %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body { font-family: 'Inter', sans-serif; }
+
+  /* ── Full-page split layout ── */
+  .fa-register-shell {
+    position: fixed; inset: 0;
+    display: flex; z-index: 9999;
+    background: #0a0a0f;
+  }
+
+  /* Left decorative panel */
+  .fa-panel-left {
+    flex: 0 0 42%;
+    background: linear-gradient(145deg, #0d1117 0%, #161b22 60%, #1c2128 100%);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 60px 48px;
+    position: relative; overflow: hidden;
+  }
+  .fa-panel-left::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 50% 30%, rgba(99,102,241,.18) 0%, transparent 70%);
+  }
+  .fa-grid {
+    position: absolute; inset: 0; opacity: .06;
+    background-image: linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .fa-brand {
+    position: relative; text-align: center; z-index: 2;
+  }
+  .fa-logo-ring {
+    width: 72px; height: 72px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-radius: 20px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 20px;
+    box-shadow: 0 0 40px rgba(99,102,241,.35);
+  }
+  .fa-logo-ring i { font-size: 2rem; color: #fff; }
+  .fa-brand h2 {
+    font-size: 2rem; font-weight: 700;
+    color: #fff; letter-spacing: -.03em; margin: 0 0 8px;
+  }
+  .fa-brand p { color: rgba(255,255,255,.45); font-size: .95rem; margin: 0; }
+  .fa-features {
+    position: relative; z-index: 2;
+    margin-top: 48px; list-style: none; padding: 0; width: 100%;
+  }
+  .fa-features li {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,.06);
+    color: rgba(255,255,255,.65); font-size: .88rem;
+  }
+  .fa-features li:last-child { border-bottom: none; }
+  .fa-features li .fi {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: rgba(99,102,241,.18);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .fa-features li .fi i { color: #818cf8; font-size: 1rem; }
+
+  /* Right form panel */
+  .fa-panel-right {
+    flex: 1;
+    background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    padding: 40px 56px;
+    overflow-y: auto;
+  }
+  .fa-form-box { width: 100%; max-width: 440px; }
+
+  .fa-form-box h1 {
+    font-size: 1.75rem; font-weight: 700;
+    color: #0f172a; letter-spacing: -.03em; margin: 0 0 6px;
+  }
+  .fa-form-box .fa-sub {
+    color: #64748b; font-size: .9rem; margin: 0 0 32px;
+  }
+  .fa-form-box .fa-sub a {
+    color: #6366f1; font-weight: 600; text-decoration: none;
+  }
+  .fa-form-box .fa-sub a:hover { text-decoration: underline; }
+
+  /* Flash alerts */
+  .fa-alert {
+    border-radius: 10px; padding: 12px 16px; font-size: .875rem;
+    margin-bottom: 20px; display: flex; align-items: flex-start; gap: 10px;
+  }
+  .fa-alert.err { background: #fef2f2; color: #991b1b; border-left: 3px solid #ef4444; }
+  .fa-alert.ok  { background: #f0fdf4; color: #166534; border-left: 3px solid #22c55e; }
+
+  /* Field */
+  .fa-field { margin-bottom: 18px; }
+  .fa-field label {
+    display: block; font-size: .82rem; font-weight: 600;
+    color: #374151; margin-bottom: 6px; letter-spacing: .01em;
+    text-transform: uppercase;
+  }
+  .fa-input-wrap {
+    position: relative; display: flex; align-items: center;
+    background: #f8fafc; border: 1.5px solid #e2e8f0;
+    border-radius: 10px; transition: border-color .2s, box-shadow .2s;
+  }
+  .fa-input-wrap:focus-within {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+    background: #fff;
+  }
+  .fa-input-wrap .fa-icon {
+    position: absolute; left: 14px;
+    color: #94a3b8; font-size: 1rem; pointer-events: none;
+  }
+  .fa-input-wrap input {
+    flex: 1; border: none; background: transparent;
+    padding: 12px 14px 12px 40px;
+    font-size: .95rem; color: #0f172a; outline: none;
+    border-radius: 10px; font-family: 'Inter', sans-serif;
+  }
+  .fa-input-wrap input::placeholder { color: #cbd5e1; }
+  /* Eye toggle button */
+  .fa-eye-btn {
+    background: none; border: none; cursor: pointer;
+    color: #94a3b8; padding: 0 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.05rem; transition: color .2s;
+  }
+  .fa-eye-btn:hover { color: #6366f1; }
+
+  /* Password strength bar */
+  .fa-strength-bar {
+    height: 3px; border-radius: 2px; margin-top: 6px;
+    background: #e2e8f0; overflow: hidden;
+  }
+  .fa-strength-fill {
+    height: 100%; width: 0; border-radius: 2px;
+    transition: width .35s ease, background .35s ease;
+  }
+  .fa-strength-text {
+    font-size: .75rem; margin-top: 4px; color: #94a3b8;
+  }
+
+  /* Submit button */
+  .fa-submit {
+    width: 100%; padding: 13px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff; border: none; border-radius: 10px;
+    font-size: .95rem; font-weight: 600; cursor: pointer;
+    letter-spacing: .01em;
+    transition: opacity .2s, transform .15s, box-shadow .2s;
+    box-shadow: 0 4px 14px rgba(99,102,241,.3);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 8px;
+  }
+  .fa-submit:hover:not(:disabled) {
+    opacity: .92; transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(99,102,241,.4);
+  }
+  .fa-submit:active:not(:disabled) { transform: translateY(0); }
+  .fa-submit:disabled { opacity: .65; cursor: not-allowed; }
+
+  .fa-divider {
+    text-align: center; position: relative;
+    margin: 24px 0; color: #cbd5e1; font-size: .8rem;
+  }
+  .fa-divider::before {
+    content: ''; position: absolute; top: 50%;
+    left: 0; right: 0; height: 1px; background: #f1f5f9;
+  }
+  .fa-divider span { background: #fff; padding: 0 12px; position: relative; }
+
+  @media (max-width: 768px) {
+    .fa-panel-left { display: none; }
+    .fa-panel-right { padding: 40px 28px; }
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<style>
-    /* Override body styles for register page only */
-    html, body {
-        height: 100%;
-        margin: 0;
-        padding: 0;
-    }
-    
-    .register-wrapper {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 20px;
-    }
-    
-    .register-container {
-        width: 100%;
-        max-width: 500px;
-    }
-    
-    .register-card {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        padding: 40px;
-    }
-    
-    .register-header {
-        text-align: center;
-        margin-bottom: 30px;
-    }
-    
-    .register-logo {
-        width: 60px;
-        height: 60px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto 15px;
-        color: white;
-        font-size: 1.8rem;
-    }
-    
-    .register-header h1 {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #1f2937;
-        margin-bottom: 5px;
-    }
-    
-    .register-header p {
-        color: #6b7280;
-        font-size: 0.95rem;
-    }
-    
-    .form-control, .form-select {
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 12px 15px;
-        font-size: 0.95rem;
-        transition: all 0.2s ease;
-    }
-    
-    .form-control:focus, .form-select:focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        outline: none;
-    }
-    
-    .input-group-text {
-        background: transparent;
-        border: 1px solid #e5e7eb;
-        border-right: none;
-        color: #6b7280;
-    }
-    
-    .form-control {
-        border-left: none;
-    }
-    
-    .form-group {
-        margin-bottom: 20px;
-    }
-    
-    .form-label {
-        font-weight: 500;
-        color: #1f2937;
-        margin-bottom: 8px;
-        font-size: 0.95rem;
-    }
-    
-    .btn-register {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border: none;
-        color: white;
-        font-weight: 600;
-        padding: 12px;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-        width: 100%;
-        margin-top: 10px;
-        cursor: pointer;
-    }
-    
-    .btn-register:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
-        color: white;
-    }
-    
-    .btn-register:active {
-        transform: translateY(0);
-    }
-    
-    .alert {
-        border: none;
-        border-radius: 8px;
-        padding: 12px 15px;
-        margin-bottom: 20px;
-        font-size: 0.9rem;
-    }
-    
-    .alert-danger {
-        background: #fee2e2;
-        color: #991b1b;
-        border-left: 4px solid #ef4444;
-    }
-    
-    .register-footer {
-        text-align: center;
-        margin-top: 25px;
-        font-size: 0.9rem;
-    }
-    
-    .register-footer a {
-        color: #667eea;
-        text-decoration: none;
-        font-weight: 600;
-    }
-    
-    .register-footer a:hover {
-        text-decoration: underline;
-    }
-    
-    .password-strength {
-        height: 4px;
-        border-radius: 2px;
-        margin-top: 5px;
-        background: #e5e7eb;
-    }
-    
-    .password-strength.weak {
-        background: #ef4444;
-    }
-    
-    .password-strength.fair {
-        background: #f59e0b;
-    }
-    
-    .password-strength.good {
-        background: #3b82f6;
-    }
-    
-    .password-strength.strong {
-        background: #10b981;
-    }
-    
-    .form-check-label {
-        color: #1f2937;
-        font-size: 0.9rem;
-    }
-    
-    small {
-        color: #6b7280;
-        font-size: 0.85rem;
-    }
-</style>
+<div class="fa-register-shell">
 
-<div class="register-wrapper">
-    <div class="register-container">
-        <div class="register-card">
-            <!-- Header -->
-            <div class="register-header">
-                <div class="register-logo">
-                    <i class="bi bi-camera-fill"></i>
-                </div>
-                <h1>Create Account</h1>
-                <p>Join FaceAttend System</p>
-            </div>
-
-            <!-- Alerts -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
-                            <i class="bi bi-{% if category == 'error' %}exclamation-circle{% else %}check-circle{% endif %} me-2"></i>
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-
-            <!-- Registration Form -->
-            <form method="POST" id="registerForm" novalidate>
-                <!-- Full Name -->
-                <div class="form-group">
-                    <label for="fullName" class="form-label">Full Name</label>
-                    <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="bi bi-person-badge"></i>
-                        </span>
-                        <input 
-                            type="text" 
-                            id="fullName" 
-                            name="full_name" 
-                            class="form-control" 
-                            placeholder="John Doe" 
-                            required>
-                    </div>
-                </div>
-
-                <!-- Username -->
-                <div class="form-group">
-                    <label for="username" class="form-label">Username</label>
-                    <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="bi bi-at"></i>
-                        </span>
-                        <input 
-                            type="text" 
-                            id="username" 
-                            name="username" 
-                            class="form-control" 
-                            placeholder="johndoe" 
-                            required>
-                    </div>
-                    <small>3-20 characters, letters, numbers and underscores only</small>
-                </div>
-
-                <!-- Email -->
-                <div class="form-group">
-                    <label for="email" class="form-label">Gmail Address</label>
-                    <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="bi bi-envelope"></i>
-                        </span>
-                        <input 
-                            type="email" 
-                            id="email" 
-                            name="email" 
-                            class="form-control" 
-                            placeholder="you@gmail.com" 
-                            required>
-                    </div>
-                    <small>Must be a valid Gmail address (@gmail.com)</small>
-                </div>
-
-                <!-- Password -->
-                <div class="form-group">
-                    <label for="password" class="form-label">Password</label>
-                    <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="bi bi-lock"></i>
-                        </span>
-                        <input 
-                            type="password" 
-                            id="password" 
-                            name="password" 
-                            class="form-control" 
-                            placeholder="••••••••" 
-                            required>
-                    </div>
-                    <div class="password-strength" id="strengthMeter"></div>
-                    <small>At least 8 characters, mix of letters and numbers</small>
-                </div>
-
-                <!-- Confirm Password -->
-                <div class="form-group">
-                    <label for="confirmPassword" class="form-label">Confirm Password</label>
-                    <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="bi bi-lock"></i>
-                        </span>
-                        <input 
-                            type="password" 
-                            id="confirmPassword" 
-                            name="confirm_password" 
-                            class="form-control" 
-                            placeholder="••••••••" 
-                            required>
-                    </div>
-                </div>
-
-                <!-- Terms Checkbox -->
-                <div class="form-check mb-3">
-                    <input 
-                        class="form-check-input" 
-                        type="checkbox" 
-                        id="agreeTerms" 
-                        name="agree_terms" 
-                        required>
-                    <label class="form-check-label" for="agreeTerms">
-                        I agree to the Terms of Service and Privacy Policy
-                    </label>
-                </div>
-
-                <!-- Submit Button -->
-                <button type="submit" class="btn btn-register" id="registerBtn">
-                    <span id="registerBtnText">Create Account</span>
-                    <span id="registerLoading" style="display: none;">
-                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Creating...
-                    </span>
-                </button>
-            </form>
-
-            <!-- Footer -->
-            <div class="register-footer">
-                <p>Already have an account? <a href="{{ url_for('auth.login') }}">Sign in</a></p>
-            </div>
-
-            <!-- Footer Text -->
-            <div class="text-center mt-4" style="color: #9ca3af; font-size: 0.85rem;">
-                <p>© 2024 Face Recognition Attendance System<br>All rights reserved.</p>
-            </div>
-        </div>
+  <!-- ── LEFT PANEL ── -->
+  <div class="fa-panel-left">
+    <div class="fa-grid"></div>
+    <div class="fa-brand">
+      <div class="fa-logo-ring"><i class="bi bi-camera-fill"></i></div>
+      <h2>FaceAttend</h2>
+      <p>Enterprise-grade biometric attendance</p>
     </div>
+    <ul class="fa-features">
+      <li>
+        <span class="fi"><i class="bi bi-shield-lock-fill"></i></span>
+        Secure SFace neural face embedding
+      </li>
+      <li>
+        <span class="fi"><i class="bi bi-lightning-fill"></i></span>
+        Sub-second recognition on live camera
+      </li>
+      <li>
+        <span class="fi"><i class="bi bi-clock-fill"></i></span>
+        Automated daily attendance reports
+      </li>
+      <li>
+        <span class="fi"><i class="bi bi-envelope-fill"></i></span>
+        Gmail email notifications &amp; summaries
+      </li>
+    </ul>
+  </div>
+
+  <!-- ── RIGHT PANEL ── -->
+  <div class="fa-panel-right">
+    <div class="fa-form-box">
+      <h1>Create your account</h1>
+      <p class="fa-sub">
+        Already have one? <a href="{{ url_for('auth.login') }}">Sign in here</a>
+      </p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="fa-alert {{ 'err' if category == 'error' else 'ok' }}">
+              <i class="bi bi-{{ 'exclamation-circle-fill' if category == 'error' else 'check-circle-fill' }}"></i>
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <form method="POST" id="registerForm" novalidate>
+
+        <!-- Name — single field, used as both username and display name -->
+        <div class="fa-field">
+          <label for="reg_name">Your Name</label>
+          <div class="fa-input-wrap">
+            <i class="fa-icon bi bi-person-fill"></i>
+            <input id="reg_name" name="full_name" type="text"
+                   placeholder="e.g. Suprabh Sharma" autocomplete="name" required>
+          </div>
+        </div>
+
+        <!-- Gmail -->
+        <div class="fa-field">
+          <label for="reg_email">Gmail Address</label>
+          <div class="fa-input-wrap">
+            <i class="fa-icon bi bi-envelope-fill"></i>
+            <input id="reg_email" name="email" type="email"
+                   placeholder="you@gmail.com" autocomplete="email" required>
+          </div>
+        </div>
+
+        <!-- Password -->
+        <div class="fa-field">
+          <label for="reg_pw">Password</label>
+          <div class="fa-input-wrap">
+            <i class="fa-icon bi bi-lock-fill"></i>
+            <input id="reg_pw" name="password" type="password"
+                   placeholder="Min 8 chars, letters + numbers" autocomplete="new-password" required>
+            <button type="button" class="fa-eye-btn" id="togglePw" aria-label="Toggle password">
+              <i class="bi bi-eye" id="eyePw"></i>
+            </button>
+          </div>
+          <div class="fa-strength-bar"><div class="fa-strength-fill" id="strengthFill"></div></div>
+          <div class="fa-strength-text" id="strengthText"></div>
+        </div>
+
+        <!-- Confirm Password -->
+        <div class="fa-field">
+          <label for="reg_cpw">Confirm Password</label>
+          <div class="fa-input-wrap">
+            <i class="fa-icon bi bi-lock-fill"></i>
+            <input id="reg_cpw" name="confirm_password" type="password"
+                   placeholder="Re-enter your password" autocomplete="new-password" required>
+            <button type="button" class="fa-eye-btn" id="toggleCpw" aria-label="Toggle confirm password">
+              <i class="bi bi-eye" id="eyeCpw"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="fa-submit" id="submitBtn">
+          <span id="btnLabel">Create Account</span>
+          <span class="spinner-border spinner-border-sm d-none" id="btnSpinner"></span>
+        </button>
+
+        <div class="fa-divider"><span>Secured by SFace · end-to-end encrypted</span></div>
+
+      </form>
+    </div>
+  </div>
+
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Password strength meter
-    const passwordInput = document.getElementById('password');
-    const strengthMeter = document.getElementById('strengthMeter');
+// ── Eye toggle helper ──
+function toggleEye(inputId, eyeIconId) {
+  const inp = document.getElementById(inputId);
+  const ico = document.getElementById(eyeIconId);
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    ico.classList.replace('bi-eye', 'bi-eye-slash');
+  } else {
+    inp.type = 'password';
+    ico.classList.replace('bi-eye-slash', 'bi-eye');
+  }
+}
+document.getElementById('togglePw').addEventListener('click',  () => toggleEye('reg_pw',  'eyePw'));
+document.getElementById('toggleCpw').addEventListener('click', () => toggleEye('reg_cpw', 'eyeCpw'));
 
-    passwordInput.addEventListener('input', function() {
-        const password = this.value;
-        let strength = 'weak';
+// ── Password strength ──
+const fill = document.getElementById('strengthFill');
+const txt  = document.getElementById('strengthText');
+document.getElementById('reg_pw').addEventListener('input', function() {
+  const v = this.value;
+  let score = 0;
+  if (v.length >= 8)  score++;
+  if (/[A-Z]/.test(v)) score++;
+  if (/[0-9]/.test(v)) score++;
+  if (/[^A-Za-z0-9]/.test(v)) score++;
+  const levels = [
+    { w: '0%',   c: '#e2e8f0', t: '' },
+    { w: '25%',  c: '#ef4444', t: 'Weak' },
+    { w: '50%',  c: '#f59e0b', t: 'Fair' },
+    { w: '75%',  c: '#3b82f6', t: 'Good' },
+    { w: '100%', c: '#22c55e', t: 'Strong' },
+  ];
+  const l = levels[v.length === 0 ? 0 : Math.min(score + 1, 4)];
+  fill.style.width = l.w; fill.style.background = l.c;
+  txt.textContent = l.t;
+});
 
-        if (password.length >= 8) {
-            let hasLetters = /[a-zA-Z]/.test(password);
-            let hasNumbers = /[0-9]/.test(password);
-            let hasSpecial = /[!@#$%^&*_]/.test(password);
+// ── Form submit ──
+document.getElementById('registerForm').addEventListener('submit', function(e) {
+  const name = document.getElementById('reg_name').value.trim();
+  const pw   = document.getElementById('reg_pw').value;
+  const cpw  = document.getElementById('reg_cpw').value;
+  const mail = document.getElementById('reg_email').value.trim();
 
-            if (hasLetters && hasNumbers && hasSpecial && password.length >= 12) {
-                strength = 'strong';
-            } else if (hasLetters && hasNumbers) {
-                strength = 'good';
-            } else if (hasLetters || hasNumbers) {
-                strength = 'fair';
-            }
-        }
+  if (!name) { e.preventDefault(); return alert('Please enter your name.'); }
+  if (!mail.endsWith('@gmail.com')) { e.preventDefault(); return alert('Only Gmail addresses are accepted.'); }
+  if (pw.length < 8) { e.preventDefault(); return alert('Password must be at least 8 characters.'); }
+  if (pw !== cpw)    { e.preventDefault(); return alert('Passwords do not match.'); }
 
-        strengthMeter.className = 'password-strength ' + strength;
-    });
-
-    // Form submission
-    document.getElementById('registerForm').addEventListener('submit', function(e) {
-        const password = document.getElementById('password').value;
-        const confirmPassword = document.getElementById('confirmPassword').value;
-
-        if (password !== confirmPassword) {
-            e.preventDefault();
-            alert('Passwords do not match!');
-            return;
-        }
-
-        if (password.length < 8) {
-            e.preventDefault();
-            alert('Password must be at least 8 characters!');
-            return;
-        }
-
-        if (!document.getElementById('agreeTerms').checked) {
-            e.preventDefault();
-            alert('Please agree to the Terms of Service!');
-            return;
-        }
-
-        // Show loading state
-        const registerBtn = document.getElementById('registerBtn');
-        const registerBtnText = document.getElementById('registerBtnText');
-        const registerLoading = document.getElementById('registerLoading');
-        
-        registerBtnText.style.display = 'none';
-        registerLoading.style.display = 'inline';
-        registerBtn.disabled = true;
-    });
-
-    // Email validation for Gmail
-    document.getElementById('email').addEventListener('change', function() {
-        if (this.value && !this.value.endsWith('@gmail.com')) {
-            alert('Please use a Gmail address (@gmail.com)');
-            this.focus();
-        }
-    });
+  document.getElementById('btnLabel').textContent  = 'Creating…';
+  document.getElementById('btnSpinner').classList.remove('d-none');
+  document.getElementById('submitBtn').disabled = true;
 });
 </script>
 {% endblock %}
