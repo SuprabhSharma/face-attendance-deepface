@@ -27,8 +27,8 @@ IST = timezone(timedelta(hours=5, minutes=30))
 _face_cache = {}
 
 def _face():
-    """Return cached face recognition functions. Load once, reuse always."""
-    if not _face_cache:
+    """Return cached face recognition functions. Load once, retry if previously failed."""
+    if not _face_cache.get('ready'):
         try:
             from app.utils.helpers import base64_to_cv2 as _b64
             from app.services.face_service import (
@@ -42,8 +42,8 @@ def _face():
             _face_cache['dup'] = _dup
             _face_cache['ready'] = True
         except Exception as e:
-            logger.warning(f"Face module not ready yet: {e}")
-            _face_cache['ready'] = False
+            logger.warning(f"Face module loading: {e}")
+            return {'ready': False}
     return _face_cache
 
 
@@ -57,20 +57,20 @@ def register():
         if not fc.get('ready'):
             return jsonify({
                 'success': False,
-                'message': 'Face module still loading. Wait 10 seconds and try again.'
+                'message': 'Face AI engine is initializing on the server. Please wait 10 seconds and try again.'
             }), 503
 
         data = request.get_json(silent=True)
         if not data:
-            return jsonify({'success': False, 'message': 'Invalid data provided.'}), 400
+            return jsonify({'success': False, 'message': 'Invalid image data received.'}), 400
 
         image_b64 = data.get('image', '')
         if not image_b64:
-            return jsonify({'success': False, 'message': 'Image is required.'}), 400
+            return jsonify({'success': False, 'message': 'No camera image captured. Please allow camera access and try again.'}), 400
 
         img = fc['b64'](image_b64)
         if img is None:
-            return jsonify({'success': False, 'message': 'Invalid image format.'}), 400
+            return jsonify({'success': False, 'message': 'Invalid image format received from camera.'}), 400
 
         user_data = get_user_by_id(current_user.id)
         if not user_data:
@@ -78,9 +78,7 @@ def register():
 
         full_name = user_data.get('full_name') or user_data.get('username')
 
-        # ── If face is already saved (including from a previous timed-out request
-        #    that completed in the background), treat it as success so the user
-        #    is not left confused thinking registration failed.
+        # ── If face is already saved, treat as success
         if user_data.get('embedding'):
             return jsonify({
                 'success': True,
@@ -96,7 +94,7 @@ def register():
         is_dup, dup_user_id, dup_name = fc['dup'](embedding)
         if is_dup:
             if dup_user_id == current_user.id:
-                # Same person — treat as success (background save scenario)
+                # Same person
                 return jsonify({
                     'success': True,
                     'already_registered': True,
@@ -105,26 +103,20 @@ def register():
             else:
                 return jsonify({
                     'success': False,
-                    'message': f'This face is already registered to another account ({dup_name}).'
+                    'message': f'This face is already registered to another employee account ({dup_name}).'
                 }), 400
 
-        # Save embedding
+        # Save embedding via database model helper
         try:
-            from app.models.db import get_db_connection
-            conn = get_db_connection()
-            c = conn.cursor()
-            embedding_json = json.dumps(embedding.tolist())
-            c.execute('UPDATE users SET embedding = ? WHERE id = ?',
-                      (embedding_json, current_user.id))
-            conn.commit()
-            conn.close()
+            from app.models.db import update_user_embedding
+            update_user_embedding(current_user.id, embedding)
         except Exception as db_err:
             logger.error(f"DB error saving embedding: {db_err}")
-            return jsonify({'success': False, 'message': 'Failed to save face data. Please retry.'}), 500
+            return jsonify({'success': False, 'message': 'Database error saving face biometrics. Please retry.'}), 500
 
         return jsonify({
             'success': True,
-            'message': f'Face registered successfully for {full_name}!'
+            'message': f'Face biometrics registered successfully for {full_name}!'
         })
 
     except Exception as e:

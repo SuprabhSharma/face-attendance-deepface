@@ -169,15 +169,29 @@
         }
     }
 
+    function setStatusBanner(type, message) {
+        const box = document.getElementById('statusMessage');
+        if (!box) return;
+        box.className = `alert alert-${type} alert-dismissible fade show mt-4 mb-0 shadow-sm`;
+        box.innerHTML = `
+            <div class="d-flex align-items-center">
+                <i class="bi bi-${type === 'success' ? 'check-circle-fill fs-4 text-success' : (type === 'warning' ? 'exclamation-circle-fill fs-4 text-warning' : 'x-circle-fill fs-4 text-danger')} me-2"></i>
+                <div>${message}</div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        box.classList.remove('d-none');
+    }
+
     document.getElementById('captureBtn').addEventListener('click', async () => {
         const btn = document.getElementById('captureBtn');
         const controller = new AbortController();
-        // 120 seconds — covers Render cold-start (30-45s) + SFace model load (15-25s) + inference
         const timeoutId = setTimeout(() => controller.abort(), 120000);
         let base64Img = null;
         
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing... please wait';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Extracting Face Biometrics... Please wait';
+        setStatusBanner('info', 'Analyzing camera frame and computing neural face embedding...');
 
         try {
             base64Img = captureBase64('videoElement', 'canvasElement');
@@ -190,22 +204,22 @@
             const data = await readJsonSafely(res);
             
             if (data.success) {
-                // Both fresh registration and already-registered scenarios are success
                 notifySuccess(data.message || 'Face registered successfully!');
+                setStatusBanner('success', `<strong>Registration Successful!</strong> ${data.message || 'Redirecting to camera scanner...'}`);
                 setTimeout(() => {
                     window.location.href = '/camera';
-                }, 2000);
+                }, 2200);
             } else {
                 notifyError(data.message || 'Registration failed. Please try again.');
+                setStatusBanner('danger', `<strong>Registration Failed:</strong> ${data.message || 'Could not detect face properly. Please ensure good lighting and look directly at the camera.'}`);
             }
         } catch (err) {
             if (err.name === 'AbortError') {
-                // Timeout fired — server may still be processing in background.
-                // Instruct user to try clicking again; the next click will detect
-                // the saved embedding and return success.
-                notifyWarning('Server is taking longer than expected (model loading). Please click Register again.');
+                notifyWarning('Server took longer than expected (AI engine warming up). Please click Capture again.');
+                setStatusBanner('warning', 'Server is warming up the AI model. Please click <strong>Capture & Register Face</strong> again.');
             } else {
                 notifyError(err.message || 'Network error: Could not connect to server.');
+                setStatusBanner('danger', `<strong>Error:</strong> ${err.message || 'Network error. Please check your connection.'}`);
             }
         } finally {
             clearTimeout(timeoutId);
