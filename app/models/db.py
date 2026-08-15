@@ -800,7 +800,7 @@ def get_all_attendance_admin(limit=500):
     conn = get_db_connection()
     c = conn.cursor()
     c.execute('''
-        SELECT a.*, u.username, u.email, u.full_name, u.role
+        SELECT a.*, u.username, u.email, u.full_name, u.role, u.profile_picture
         FROM attendance a
         JOIN users u ON a.user_id = u.id
         ORDER BY a.date DESC, a.time_in DESC, a.created_at DESC
@@ -813,6 +813,12 @@ def get_all_attendance_admin(limit=500):
     for r in records:
         d = dict(r)
         d['status'] = resolve_attendance_status(d.get('status'), d.get('time_in'))
+        if isinstance(d.get('date'), (datetime,)):
+            d['date'] = d['date'].strftime('%Y-%m-%d')
+        if hasattr(d.get('date'), 'strftime'):
+            d['date'] = d['date'].strftime('%Y-%m-%d')
+        if hasattr(d.get('time_in'), 'strftime'):
+            d['time_in'] = d['time_in'].strftime('%H:%M:%S')
         cleaned.append(d)
     return cleaned
 
