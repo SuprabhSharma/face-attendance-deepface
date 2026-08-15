@@ -3,7 +3,7 @@ Authentication routes for user login, registration, and session management.
 Handles user authentication flow using Flask-Login for session management.
 """
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from functools import wraps
 import logging
@@ -13,7 +13,8 @@ from app.models.db import (
     create_user, 
     get_user_by_username,
     get_user_by_email,
-    get_user_by_id
+    get_user_by_id,
+    update_user_profile_picture
 )
 
 # Create blueprint
@@ -254,6 +255,56 @@ def profile():
         return redirect(url_for('auth.login'))
     
     return render_template('auth/profile.html', user=user_data)
+
+
+@auth_bp.route('/update-profile-picture', methods=['POST'])
+@login_required
+def update_profile_picture_route():
+    """Upload or update user profile picture in real-time"""
+    try:
+        data = request.get_json(silent=True) or {}
+        image_data = data.get('image')
+
+        # Also support multipart file uploads
+        if not image_data and 'file' in request.files:
+            file = request.files['file']
+            if file and file.filename:
+                import base64
+                file_bytes = file.read()
+                mime = file.mimetype or 'image/jpeg'
+                b64 = base64.b64encode(file_bytes).decode('utf-8')
+                image_data = f"data:{mime};base64,{b64}"
+
+        if not image_data:
+            return jsonify({'success': False, 'message': 'No image provided'}), 400
+
+        # Validate base64 data URL
+        if not (image_data.startswith('data:image/') or image_data.startswith('http')):
+            return jsonify({'success': False, 'message': 'Invalid image format'}), 400
+
+        update_user_profile_picture(current_user.id, image_data)
+        logger.info(f"Updated profile picture for user #{current_user.id} ({current_user.username})")
+        return jsonify({
+            'success': True,
+            'message': 'Profile picture updated successfully',
+            'profile_picture': image_data
+        })
+    except Exception as e:
+        logger.error(f"Error updating profile picture: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@auth_bp.route('/remove-profile-picture', methods=['POST'])
+@login_required
+def remove_profile_picture_route():
+    """Remove user profile picture"""
+    try:
+        update_user_profile_picture(current_user.id, None)
+        logger.info(f"Removed profile picture for user #{current_user.id} ({current_user.username})")
+        return jsonify({'success': True, 'message': 'Profile picture removed successfully'})
+    except Exception as e:
+        logger.error(f"Error removing profile picture: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @auth_bp.route('/change-password', methods=['GET', 'POST'])

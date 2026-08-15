@@ -146,6 +146,7 @@ def init_db():
                 password_hash TEXT NOT NULL,
                 full_name TEXT NOT NULL,
                 embedding TEXT,
+                profile_picture TEXT,
                 role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user', 'manager')),
                 status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
                 is_verified INTEGER DEFAULT 0,
@@ -156,6 +157,11 @@ def init_db():
         c.execute('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)')
+
+        try:
+            c.execute('ALTER TABLE users ADD COLUMN profile_picture TEXT')
+        except Exception:
+            pass
 
         c.execute('''
             CREATE TABLE IF NOT EXISTS attendance (
@@ -257,6 +263,7 @@ def init_db():
                 password_hash TEXT NOT NULL,
                 full_name TEXT NOT NULL,
                 embedding TEXT,
+                profile_picture TEXT,
                 role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user', 'manager')),
                 status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
                 is_verified INTEGER DEFAULT 0,
@@ -267,6 +274,11 @@ def init_db():
         c.execute('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)')
+
+        try:
+            c.execute('ALTER TABLE users ADD COLUMN profile_picture TEXT')
+        except Exception:
+            pass
 
         c.execute('''
             CREATE TABLE IF NOT EXISTS attendance (
@@ -506,6 +518,27 @@ def ensure_default_admin():
     ''', (admin_username, admin_email, hash_password(admin_password), admin_full_name))
     conn.commit()
     conn.close()
+
+
+def update_user_profile_picture(user_id, profile_picture):
+    """Update user profile picture (base64 data URL or path)"""
+    conn = get_db_connection()
+    c = conn.cursor()
+    if conn.is_postgres:
+        c.execute('''
+            UPDATE users
+            SET profile_picture = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        ''', (profile_picture, user_id))
+    else:
+        c.execute('''
+            UPDATE users
+            SET profile_picture = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (profile_picture, user_id))
+    conn.commit()
+    conn.close()
+    return True
 
 
 # ============================================
