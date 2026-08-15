@@ -18,7 +18,6 @@ def create_app():
     # 🔐 SECURITY & SESSION CONFIG
     # ==============================
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-change-in-production')
-
     app.config['SESSION_PERMANENT'] = False
     app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV', 'development') == 'production'
     app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -44,6 +43,8 @@ def create_app():
                 user_id=user_data['id'],
                 username=user_data['username'],
                 email=user_data['email'],
+                full_name=user_data.get('full_name'),
+                profile_picture=user_data.get('profile_picture'),
                 role=user_data.get('role', 'user')
             )
         return None
@@ -79,14 +80,11 @@ def create_app():
 
     # ==============================
     # 🤖 PRELOAD FACE MODEL (BACKGROUND THREAD)
-    # Runs in a daemon thread so it never blocks Gunicorn startup.
-    # By the time a real user logs in and reaches the register page,
-    # SFace will already be warm in memory.
     # ==============================
     import threading
     def _preload_sface():
         try:
-            from app.services.face_service import get_face_embedding  # triggers DeepFace.build_model
+            from app.services.face_service import get_face_embedding
             logging.info("SFace model preloaded successfully in background thread.")
         except Exception as _e:
             logging.warning(f"SFace background preload warning: {_e}")
@@ -95,17 +93,14 @@ def create_app():
     _t.start()
 
     # ==============================
-    # ⏰ SCHEDULER (FIXED)
+    # ⏰ SCHEDULER
     # ==============================
     if os.getenv('SCHEDULER_ENABLED', 'true').lower() == 'true':
         try:
             from app.services.scheduler import start_scheduler, scheduler
-
-            # ✅ Prevent multiple scheduler starts
             if not scheduler.running:
                 start_scheduler()
             logging.info("[OK] Attendance scheduler started")
-
         except Exception as e:
             logging.error(f"Failed to start scheduler: {e}")
 

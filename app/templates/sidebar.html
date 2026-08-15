@@ -69,10 +69,19 @@
         <!-- User Info -->
         <div class="px-3 py-3 border-top border-secondary">
             <small class="text-muted d-block mb-2">Logged in as:</small>
-            <div class="d-flex align-items-center">
-                <i class="bi bi-person-circle me-2 text-info"></i>
-                <span class="text-white small fw-semibold">{{ current_user.username }}</span>
-            </div>
+            <a href="{{ url_for('auth.profile') }}" class="d-flex align-items-center text-decoration-none" title="View Profile">
+                {% if current_user.profile_picture %}
+                    <img src="{{ current_user.profile_picture }}" class="rounded-circle border border-secondary me-2" style="width: 32px; height: 32px; object-fit: cover;" alt="Avatar">
+                {% else %}
+                    <div class="rounded-circle me-2 d-flex align-items-center justify-content-center text-white fw-bold" style="width: 32px; height: 32px; font-size: 0.85rem; background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);">
+                        {{ (current_user.full_name or current_user.username)[0] | upper }}
+                    </div>
+                {% endif %}
+                <div class="overflow-hidden">
+                    <span class="text-white small fw-semibold d-block text-truncate">{{ current_user.full_name or current_user.username }}</span>
+                    <span class="badge bg-primary bg-opacity-25 text-info" style="font-size: 0.65rem;">{{ current_user.role | capitalize }}</span>
+                </div>
+            </a>
         </div>
 
     {% else %}

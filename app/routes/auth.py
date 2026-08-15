@@ -25,11 +25,13 @@ logger = logging.getLogger('auth')
 
 
 class User:
-    """Simple user object for Flask-Login"""
-    def __init__(self, user_id, username, email, role='user', is_active=True):
+    """User object for Flask-Login with full attributes including profile photo"""
+    def __init__(self, user_id, username, email, full_name=None, profile_picture=None, role='user', is_active=True):
         self.id = user_id
         self.username = username
         self.email = email
+        self.full_name = full_name or username
+        self.profile_picture = profile_picture
         self.role = role
         self.is_active = is_active
         self.is_authenticated = True
@@ -116,6 +118,8 @@ def _handle_login(login_mode='user'):
                 user_id=user_data['id'],
                 username=user_data['username'],
                 email=user_data['email'],
+                full_name=user_data.get('full_name'),
+                profile_picture=user_data.get('profile_picture'),
                 role=user_data.get('role', 'user')
             )
 
