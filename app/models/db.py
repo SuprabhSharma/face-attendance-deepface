@@ -131,8 +131,14 @@ def verify_password(password_hash, password):
     return password_hash == hash_password(password)
 
 
-def init_db():
-    """Initialize database with all tables (Auto-adapts to PostgreSQL / SQLite)."""
+_db_is_initialized = False
+
+def init_db(force=False):
+    """Initialize database tables with fast one-time execution guard."""
+    global _db_is_initialized
+    if _db_is_initialized and not force:
+        return
+
     conn = get_db_connection()
     c = conn.cursor()
 
@@ -141,14 +147,14 @@ def init_db():
         c.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                full_name TEXT NOT NULL,
+                username VARCHAR(100) UNIQUE NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                full_name VARCHAR(255) NOT NULL,
                 embedding TEXT,
                 profile_picture TEXT,
-                role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user', 'manager')),
-                status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
+                role VARCHAR(20) DEFAULT 'user' CHECK(role IN ('admin', 'user', 'manager')),
+                status VARCHAR(20) DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
                 is_verified INTEGER DEFAULT 0,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -159,7 +165,7 @@ def init_db():
         c.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)')
 
         try:
-            c.execute('ALTER TABLE users ADD COLUMN profile_picture TEXT')
+            c.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture TEXT')
         except Exception:
             pass
 
@@ -167,12 +173,12 @@ def init_db():
             CREATE TABLE IF NOT EXISTS attendance (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                date TEXT NOT NULL,
-                time_in TEXT,
-                time_out TEXT,
-                status TEXT DEFAULT 'present' CHECK(status IN ('present', 'late', 'absent', 'half_day')),
+                date DATE NOT NULL,
+                time_in TIME,
+                time_out TIME,
+                status VARCHAR(20) DEFAULT 'present' CHECK(status IN ('present', 'late', 'absent', 'half_day')),
                 notes TEXT,
-                marked_by TEXT DEFAULT 'face_recognition',
+                marked_by VARCHAR(50) DEFAULT 'face_recognition',
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(user_id, date)
@@ -186,23 +192,25 @@ def init_db():
             CREATE TABLE IF NOT EXISTS working_hours (
                 id SERIAL PRIMARY KEY,
                 day_of_week INTEGER UNIQUE,
-                start_time TEXT,
-                end_time TEXT,
+                start_time TIME,
+                end_time TIME,
                 is_working_day INTEGER DEFAULT 1
             )
         ''')
-        for day in range(5):
-            c.execute('''
-                INSERT INTO working_hours (day_of_week, start_time, end_time, is_working_day)
-                VALUES (%s, '09:00:00', '17:00:00', 1)
-                ON CONFLICT (day_of_week) DO NOTHING
-            ''', (day,))
-        for day in [5, 6]:
-            c.execute('''
-                INSERT INTO working_hours (day_of_week, start_time, end_time, is_working_day)
-                VALUES (%s, '00:00:00', '00:00:00', 0)
-                ON CONFLICT (day_of_week) DO NOTHING
-            ''', (day,))
+        
+        # Batch insert working hours
+        c.execute('''
+            INSERT INTO working_hours (day_of_week, start_time, end_time, is_working_day)
+            VALUES 
+                (0, '09:00:00', '17:00:00', 1),
+                (1, '09:00:00', '17:00:00', 1),
+                (2, '09:00:00', '17:00:00', 1),
+                (3, '09:00:00', '17:00:00', 1),
+                (4, '09:00:00', '17:00:00', 1),
+                (5, '09:00:00', '17:00:00', 1),
+                (6, '00:00:00', '00:00:00', 0)
+            ON CONFLICT (day_of_week) DO NOTHING
+        ''')
 
         c.execute('''
             CREATE TABLE IF NOT EXISTS attendance_reports (
@@ -303,22 +311,25 @@ def init_db():
         c.execute('''
             CREATE TABLE IF NOT EXISTS working_hours (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                day_of_week INTEGER,
+                day_of_week INTEGER UNIQUE,
                 start_time TEXT,
                 end_time TEXT,
                 is_working_day INTEGER DEFAULT 1
             )
         ''')
-        for day in range(5):
-            c.execute('''
-                INSERT OR IGNORE INTO working_hours (day_of_week, start_time, end_time, is_working_day)
-                VALUES (?, '09:00:00', '17:00:00', 1)
-            ''', (day,))
-        for day in [5, 6]:
-            c.execute('''
-                INSERT OR IGNORE INTO working_hours (day_of_week, start_time, end_time, is_working_day)
-                VALUES (?, '00:00:00', '00:00:00', 0)
-            ''', (day,))
+        
+        # Batch insert for SQLite
+        c.execute('''
+            INSERT OR IGNORE INTO working_hours (day_of_week, start_time, end_time, is_working_day)
+            VALUES 
+                (0, '09:00:00', '17:00:00', 1),
+                (1, '09:00:00', '17:00:00', 1),
+                (2, '09:00:00', '17:00:00', 1),
+                (3, '09:00:00', '17:00:00', 1),
+                (4, '09:00:00', '17:00:00', 1),
+                (5, '09:00:00', '17:00:00', 1),
+                (6, '00:00:00', '00:00:00', 0)
+        ''')
 
         c.execute('''
             CREATE TABLE IF NOT EXISTS attendance_reports (
@@ -379,6 +390,7 @@ def init_db():
 
     conn.commit()
     conn.close()
+    _db_is_initialized = True
     engine_name = "Render PostgreSQL" if IS_POSTGRES else "Local SQLite"
     print(f"Database initialized successfully [{engine_name}]")
 
