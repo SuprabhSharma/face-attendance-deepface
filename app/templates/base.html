@@ -36,14 +36,48 @@
 </head>
 <body class="bg-light">
 
-<!-- ── PWA Install Banner (non-intrusive, only shown by browser prompt) ── -->
-<div id="pwaInstallBanner" class="d-none" style="position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);z-index:9999;width:min(420px,calc(100vw - 2rem));">
+<!-- ── PWA Install Banner ── -->
+<!-- Desktop: bottom-right corner | Mobile: top-right corner -->
+<style>
+#pwaInstallBanner {
+    position: fixed;
+    z-index: 9999;
+    width: min(340px, calc(100vw - 2rem));
+    /* Desktop: bottom-right */
+    bottom: 1.5rem;
+    right: 1.5rem;
+    top: auto;
+    left: auto;
+    transform: none;
+    animation: pwaSlideIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+@keyframes pwaSlideIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+/* Mobile: top-right corner */
+@media (max-width: 768px) {
+    #pwaInstallBanner {
+        top: 1rem;
+        right: 1rem;
+        bottom: auto;
+        left: auto;
+        width: min(300px, calc(100vw - 2rem));
+        animation: pwaSlideDown 0.35s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+    @keyframes pwaSlideDown {
+        from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+        to   { opacity: 1; transform: translateY(0)     scale(1); }
+    }
+}
+</style>
+<div id="pwaInstallBanner" class="d-none">
     <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
-        <div class="card-body p-3 d-flex align-items-center gap-3" style="background:linear-gradient(135deg,#1e40af 0%,#2563eb 100%);">
-            <img src="{{ url_for('static', filename='img/logo.png') }}" style="width:46px;height:46px;border-radius:12px;flex-shrink:0;" alt="FaceAttend">
-            <div class="flex-grow-1">
-                <div class="text-white fw-bold" style="font-size:0.92rem;">Install FaceAttend App</div>
-                <div class="text-white text-opacity-75" style="font-size:0.78rem;">Add to Home Screen for instant access</div>
+        <div class="card-body p-3 d-flex align-items-center gap-2" style="background:linear-gradient(135deg,#1e40af 0%,#2563eb 100%);">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" style="width:38px;height:38px;border-radius:10px;flex-shrink:0;" alt="FaceAttend">
+            <div class="flex-grow-1 min-width-0">
+                <div class="text-white fw-bold" style="font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Install FaceAttend App</div>
+                <div class="text-white text-opacity-75" style="font-size:0.72rem;">Add to Home Screen for instant access</div>
             </div>
             <div class="d-flex gap-2 flex-shrink-0">
                 <button id="pwaInstallBtn" class="btn btn-sm btn-light fw-semibold rounded-3 px-3" style="font-size:0.8rem;">
