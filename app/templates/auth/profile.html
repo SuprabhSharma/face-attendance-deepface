@@ -6,28 +6,28 @@
 <style>
 .prof-avatar-wrapper {
     position: relative;
-    width: 90px;
-    height: 90px;
+    width: 96px;
+    height: 96px;
     cursor: pointer;
     flex-shrink: 0;
 }
 .prof-avatar {
-    width: 90px;
-    height: 90px;
+    width: 96px;
+    height: 96px;
     border-radius: 50%;
     background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2.2rem;
+    font-size: 2.3rem;
     color: #fff;
     font-weight: 700;
     box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
     transition: transform 0.2s, box-shadow 0.2s;
 }
 .prof-avatar-img {
-    width: 90px;
-    height: 90px;
+    width: 96px;
+    height: 96px;
     border-radius: 50%;
     object-fit: cover;
     border: 3px solid #3b82f6;
@@ -41,10 +41,10 @@
 }
 .avatar-badge-btn {
     position: absolute;
-    bottom: 0;
-    right: 0;
-    width: 30px;
-    height: 30px;
+    bottom: 2px;
+    right: 2px;
+    width: 32px;
+    height: 32px;
     background: #2563eb;
     color: #fff;
     border-radius: 50%;
@@ -52,7 +52,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
     transition: background 0.2s;
 }
@@ -78,11 +78,11 @@
 .badge-half_day { background: #dbeafe; color: #2563eb; }
 .badge-absent   { background: #fee2e2; color: #dc2626; }
 
-/* Camera / Upload Modal styles */
+/* Interactive Crop Studio */
 .upload-dropzone {
     border: 2px dashed #cbd5e1;
     border-radius: 16px;
-    padding: 30px 20px;
+    padding: 36px 20px;
     text-align: center;
     cursor: pointer;
     background: #f8fafc;
@@ -95,26 +95,64 @@
 .camera-preview-container {
     position: relative;
     width: 100%;
-    max-width: 360px;
-    height: 270px;
+    max-width: 420px;
+    height: 300px;
     margin: 0 auto;
     border-radius: 16px;
     overflow: hidden;
     background: #0f172a;
 }
-.camera-preview-container video,
-.camera-preview-container canvas {
+.camera-preview-container video {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
-.photo-crop-preview {
-    width: 120px;
-    height: 120px;
+
+/* Interactive Crop Canvas Area */
+.crop-editor-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    height: 320px;
+    margin: 0 auto;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #0f172a;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+}
+.crop-editor-wrapper:active {
+    cursor: grabbing;
+}
+#cropperCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+.crop-mask-circle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 220px;
+    height: 220px;
     border-radius: 50%;
-    object-fit: cover;
-    border: 3px solid #3b82f6;
-    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+    box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.68);
+    border: 2px dashed #38bdf8;
+    pointer-events: none;
+}
+.crop-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+    background: #f8fafc;
+    padding: 10px 16px;
+    border-radius: 12px;
+}
+.crop-zoom-slider {
+    flex-grow: 1;
 }
 </style>
 
@@ -124,11 +162,11 @@
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
             <h4 class="fw-bold mb-0"><i class="bi bi-person-circle me-2 text-primary"></i>My Profile</h4>
-            <small class="text-muted">Manage your photo, account details, and attendance history</small>
+            <small class="text-muted">Customize your profile photo, account details, and view attendance stats</small>
         </div>
         <div class="d-flex gap-2">
             <button class="btn btn-outline-primary btn-sm shadow-sm px-3" onclick="openPhotoModal()">
-                <i class="bi bi-camera me-1"></i> Update Photo
+                <i class="bi bi-camera me-1"></i> Change Photo
             </button>
             <a href="{{ url_for('auth.change_password') }}" class="btn btn-primary btn-sm shadow-sm px-3">
                 <i class="bi bi-key me-1"></i> Change Password
@@ -144,11 +182,11 @@
                 <div class="card-body p-4">
                     <!-- Avatar + name -->
                     <div class="d-flex align-items-center gap-3 mb-4">
-                        <div class="prof-avatar-wrapper" onclick="openPhotoModal()" title="Click to change photo">
+                        <div class="prof-avatar-wrapper" onclick="openPhotoModal()" title="Click to edit and crop photo">
                             <img src="{{ user.profile_picture or '' }}" id="avatarImg" class="prof-avatar-img {% if not user.profile_picture %}d-none{% endif %}" alt="{{ user.full_name }}">
                             <div class="prof-avatar {% if user.profile_picture %}d-none{% endif %}" id="avatarInitial">{{ (user.full_name or user.username)[0] | upper }}</div>
-                            <div class="avatar-badge-btn" title="Change Photo">
-                                <i class="bi bi-camera-fill"></i>
+                            <div class="avatar-badge-btn" title="Edit Photo">
+                                <i class="bi bi-pencil-fill"></i>
                             </div>
                         </div>
                         <div>
@@ -267,69 +305,88 @@
     </div>
 </div>
 
-<!-- ─── PHOTO MANAGEMENT MODAL ─── -->
+<!-- ─── INTERACTIVE PHOTO EDITOR MODAL ─── -->
 <div class="modal fade" id="photoModal" tabindex="-1" aria-labelledby="photoModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
             <div class="modal-header border-bottom border-light px-4 py-3">
                 <h5 class="modal-title fw-bold" id="photoModalLabel">
-                    <i class="bi bi-camera me-2 text-primary"></i>Profile Photo
+                    <i class="bi bi-crop me-2 text-primary"></i>Edit Profile Photo
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="stopCameraStream()"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="closePhotoModal()"></button>
             </div>
             <div class="modal-body p-4">
 
                 <!-- Mode Navigation Tabs -->
                 <ul class="nav nav-pills nav-fill mb-4 p-1 bg-light rounded-3" id="photoTabs" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active rounded-3 py-2 fw-semibold" id="tab-upload" data-bs-toggle="pill" data-bs-target="#pane-upload" type="button" role="tab" onclick="stopCameraStream()">
-                            <i class="bi bi-upload me-1"></i> Upload File
+                        <button class="nav-link active rounded-3 py-2 fw-semibold" id="tab-upload" data-bs-toggle="pill" data-bs-target="#pane-upload" type="button" role="tab" onclick="switchTab('upload')">
+                            <i class="bi bi-upload me-1"></i> Upload Image
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link rounded-3 py-2 fw-semibold" id="tab-camera" data-bs-toggle="pill" data-bs-target="#pane-camera" type="button" role="tab" onclick="startCameraStream()">
-                            <i class="bi bi-camera-video me-1"></i> Take Photo
+                        <button class="nav-link rounded-3 py-2 fw-semibold" id="tab-camera" data-bs-toggle="pill" data-bs-target="#pane-camera" type="button" role="tab" onclick="switchTab('camera')">
+                            <i class="bi bi-camera-video me-1"></i> Take Camera Photo
                         </button>
                     </li>
                 </ul>
 
-                <div class="tab-content" id="photoTabContent">
-
-                    <!-- ── PANE 1: Upload from Device ── -->
-                    <div class="tab-pane fade show active" id="pane-upload" role="tabpanel">
-                        <input type="file" id="fileInput" accept="image/*" class="d-none" onchange="handleFileSelected(event)">
-                        <div class="upload-dropzone" onclick="document.getElementById('fileInput').click()">
-                            <i class="bi bi-cloud-arrow-up text-primary" style="font-size: 2.5rem;"></i>
-                            <h6 class="fw-bold mt-2 mb-1">Choose Photo from Device</h6>
-                            <p class="text-muted small mb-0">Supports JPG, PNG, WEBP (Max 5MB)</p>
-                        </div>
+                <!-- ── PANE 1: Upload Source ── -->
+                <div id="sourceUploadSection">
+                    <input type="file" id="fileInput" accept="image/*" class="d-none" onchange="handleFileSelected(event)">
+                    <div class="upload-dropzone mb-3" onclick="document.getElementById('fileInput').click()">
+                        <i class="bi bi-cloud-arrow-up text-primary" style="font-size: 2.8rem;"></i>
+                        <h6 class="fw-bold mt-2 mb-1">Click to select photo from device</h6>
+                        <p class="text-muted small mb-0">Drag and position your face perfectly inside the circle</p>
                     </div>
-
-                    <!-- ── PANE 2: Take Photo from Camera ── -->
-                    <div class="tab-pane fade" id="pane-camera" role="tabpanel">
-                        <div class="camera-preview-container mb-3">
-                            <video id="modalVideo" autoplay playsinline muted></video>
-                            <canvas id="modalCanvas" class="d-none"></canvas>
-                        </div>
-                        <div class="text-center">
-                            <button type="button" class="btn btn-primary rounded-pill px-4" id="snapBtn" onclick="snapPhoto()">
-                                <i class="bi bi-camera-fill me-1"></i> Take Snapshot
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary rounded-pill px-3 d-none" id="retakeBtn" onclick="retakePhoto()">
-                                <i class="bi bi-arrow-repeat me-1"></i> Retake
-                            </button>
-                        </div>
-                    </div>
-
                 </div>
 
-                <!-- ── PREVIEW SECTION ── -->
-                <div id="previewArea" class="mt-4 pt-3 border-top text-center d-none">
-                    <p class="small fw-semibold text-muted mb-2">Photo Preview</p>
-                    <img id="cropPreview" class="photo-crop-preview mb-3" alt="Preview">
-                    <div>
-                        <button type="button" class="btn btn-success rounded-pill px-4 shadow-sm" id="savePhotoBtn" onclick="saveProfilePhoto()">
-                            <i class="bi bi-check2-circle me-1"></i> Save as Profile Photo
+                <!-- ── PANE 2: Live Camera Source ── -->
+                <div id="sourceCameraSection" class="d-none mb-3">
+                    <div class="camera-preview-container mb-3">
+                        <video id="modalVideo" autoplay playsinline muted></video>
+                    </div>
+                    <div class="text-center">
+                        <button type="button" class="btn btn-primary rounded-pill px-4" id="snapBtn" onclick="snapCameraPhoto()">
+                            <i class="bi bi-camera-fill me-1"></i> Take Photo & Edit
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ── INTERACTIVE CANVAS CROPPER (Visible when image loaded) ── -->
+                <div id="cropperSection" class="d-none">
+                    <div class="text-center mb-2">
+                        <span class="badge bg-light text-secondary border px-3 py-1">
+                            <i class="bi bi-arrows-move me-1"></i> Click & Drag to reposition · Use slider to zoom
+                        </span>
+                    </div>
+
+                    <div class="crop-editor-wrapper" id="cropperWrapper">
+                        <canvas id="cropperCanvas"></canvas>
+                        <div class="crop-mask-circle"></div>
+                    </div>
+
+                    <!-- Crop Controls -->
+                    <div class="crop-controls">
+                        <button type="button" class="btn btn-light btn-sm rounded-circle shadow-sm" onclick="adjustZoom(-0.1)" title="Zoom Out">
+                            <i class="bi bi-zoom-out"></i>
+                        </button>
+                        <input type="range" class="form-range crop-zoom-slider" id="zoomSlider" min="0.5" max="3.0" step="0.01" value="1.0" oninput="handleZoom(this.value)">
+                        <button type="button" class="btn btn-light btn-sm rounded-circle shadow-sm" onclick="adjustZoom(0.1)" title="Zoom In">
+                            <i class="bi bi-zoom-in"></i>
+                        </button>
+                        <div class="vr mx-1"></div>
+                        <button type="button" class="btn btn-light btn-sm rounded-pill px-3 shadow-sm" onclick="rotateImage()" title="Rotate 90 deg">
+                            <i class="bi bi-arrow-clockwise me-1"></i> Rotate
+                        </button>
+                        <button type="button" class="btn btn-light btn-sm rounded-pill px-3 shadow-sm" onclick="resetCrop()" title="Reset Position">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i> Reset
+                        </button>
+                    </div>
+
+                    <div class="text-center mt-4">
+                        <button type="button" class="btn btn-success rounded-pill px-5 py-2 fw-semibold shadow" id="savePhotoBtn" onclick="saveProfilePhoto()">
+                            <i class="bi bi-check2-circle me-1"></i> Save Selected Photo
                         </button>
                     </div>
                 </div>
@@ -337,10 +394,10 @@
             </div>
             <div class="modal-footer border-top border-light px-4 py-3 d-flex justify-content-between">
                 <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" id="removePhotoBtn" onclick="removeProfilePhoto()">
-                    <i class="bi bi-trash me-1"></i> Remove Current Photo
+                    <i class="bi bi-trash me-1"></i> Remove Photo
                 </button>
-                <button type="button" class="btn btn-light btn-sm rounded-pill" data-bs-dismiss="modal" onclick="stopCameraStream()">
-                    Close
+                <button type="button" class="btn btn-light btn-sm rounded-pill" data-bs-dismiss="modal" onclick="closePhotoModal()">
+                    Cancel
                 </button>
             </div>
         </div>
@@ -352,9 +409,20 @@
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-let pendingPhotoBase64 = null;
 let cameraStream = null;
 let photoModalInstance = null;
+
+// Cropper State
+let sourceImage = null;
+let imgX = 0;
+let imgY = 0;
+let imgScale = 1.0;
+let imgBaseScale = 1.0;
+let imgRotation = 0; // 0, 90, 180, 270
+let isDragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
+const CROP_SIZE = 220; // circular frame diameter
 
 function fmtDate(d) {
     const [y,m,day] = d.split('-');
@@ -408,36 +476,54 @@ function workingHrs(status, time_in) {
 }
 
 // ══════════════════════════════════════════════════════════
-//  PROFILE PHOTO MODAL & CAMERA CAPTURE LOGIC
+//  INTERACTIVE CROP STUDIO ENGINE
 // ══════════════════════════════════════════════════════════
 function openPhotoModal() {
     if (!photoModalInstance) {
         photoModalInstance = new bootstrap.Modal(document.getElementById('photoModal'));
     }
-    document.getElementById('previewArea').classList.add('d-none');
-    pendingPhotoBase64 = null;
+    switchTab('upload');
     photoModalInstance.show();
+}
+
+function closePhotoModal() {
+    stopCameraStream();
+    if (photoModalInstance) photoModalInstance.hide();
+}
+
+function switchTab(mode) {
+    const uploadBtn = document.getElementById('tab-upload');
+    const cameraBtn = document.getElementById('tab-camera');
+    const uploadSec = document.getElementById('sourceUploadSection');
+    const cameraSec = document.getElementById('sourceCameraSection');
+
+    if (mode === 'upload') {
+        uploadBtn.classList.add('active');
+        cameraBtn.classList.remove('active');
+        uploadSec.classList.remove('d-none');
+        cameraSec.classList.add('d-none');
+        stopCameraStream();
+    } else {
+        cameraBtn.classList.add('active');
+        uploadBtn.classList.remove('active');
+        cameraSec.classList.remove('d-none');
+        uploadSec.classList.add('d-none');
+        startCameraStream();
+    }
 }
 
 async function startCameraStream() {
     try {
         const video = document.getElementById('modalVideo');
-        document.getElementById('modalCanvas').classList.add('d-none');
-        video.classList.remove('d-none');
-        document.getElementById('snapBtn').classList.remove('d-none');
-        document.getElementById('retakeBtn').classList.add('d-none');
-
-        if (cameraStream) {
-            stopCameraStream();
-        }
+        if (cameraStream) stopCameraStream();
 
         cameraStream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
             audio: false
         });
         video.srcObject = cameraStream;
     } catch (err) {
-        alert('Could not access camera: ' + err.message);
+        alert('Could not access device camera: ' + err.message);
     }
 }
 
@@ -450,42 +536,23 @@ function stopCameraStream() {
     if (video) video.srcObject = null;
 }
 
-function snapPhoto() {
+function snapCameraPhoto() {
     const video = document.getElementById('modalVideo');
-    const canvas = document.getElementById('modalCanvas');
     if (!video || !video.videoWidth) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const snapCanvas = document.createElement('canvas');
+    snapCanvas.width = video.videoWidth;
+    snapCanvas.height = video.videoHeight;
+    const ctx = snapCanvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
 
-    // Crop to center square and scale to 512x512
-    const size = Math.min(canvas.width, canvas.height);
-    const cropCanvas = document.createElement('canvas');
-    cropCanvas.width = 512;
-    cropCanvas.height = 512;
-    const cropCtx = cropCanvas.getContext('2d');
-    const startX = (canvas.width - size) / 2;
-    const startY = (canvas.height - size) / 2;
-    cropCtx.drawImage(canvas, startX, startY, size, size, 0, 0, 512, 512);
-
-    pendingPhotoBase64 = cropCanvas.toDataURL('image/jpeg', 0.88);
-
-    // Show preview in modal
-    video.classList.add('d-none');
-    canvas.classList.remove('d-none');
-    document.getElementById('snapBtn').classList.add('d-none');
-    document.getElementById('retakeBtn').classList.remove('d-none');
-
-    document.getElementById('cropPreview').src = pendingPhotoBase64;
-    document.getElementById('previewArea').classList.remove('d-none');
-}
-
-function retakePhoto() {
-    document.getElementById('previewArea').classList.add('d-none');
-    pendingPhotoBase64 = null;
-    startCameraStream();
+    const img = new Image();
+    img.onload = () => {
+        initCropEditor(img);
+        stopCameraStream();
+        document.getElementById('sourceCameraSection').classList.add('d-none');
+    };
+    img.src = snapCanvas.toDataURL('image/jpeg', 0.95);
 }
 
 function handleFileSelected(event) {
@@ -498,30 +565,190 @@ function handleFileSelected(event) {
     }
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = (e) => {
         const img = new Image();
-        img.onload = function() {
-            // Resize and crop to 512x512 square
-            const canvas = document.createElement('canvas');
-            canvas.width = 512;
-            canvas.height = 512;
-            const ctx = canvas.getContext('2d');
-            const size = Math.min(img.width, img.height);
-            const startX = (img.width - size) / 2;
-            const startY = (img.height - size) / 2;
-            ctx.drawImage(img, startX, startY, size, size, 0, 0, 512, 512);
-
-            pendingPhotoBase64 = canvas.toDataURL('image/jpeg', 0.88);
-            document.getElementById('cropPreview').src = pendingPhotoBase64;
-            document.getElementById('previewArea').classList.remove('d-none');
+        img.onload = () => {
+            initCropEditor(img);
         };
         img.src = e.target.result;
     };
     reader.readAsDataURL(file);
 }
 
+function initCropEditor(img) {
+    sourceImage = img;
+    const wrapper = document.getElementById('cropperWrapper');
+    const canvas = document.getElementById('cropperCanvas');
+
+    canvas.width = wrapper.clientWidth || 420;
+    canvas.height = wrapper.clientHeight || 320;
+
+    // Calculate base scale so image covers the circular frame nicely
+    const minDim = Math.min(img.width, img.height);
+    imgBaseScale = Math.max(CROP_SIZE / minDim, 0.5);
+    imgScale = imgBaseScale;
+    imgRotation = 0;
+
+    // Center image on canvas center
+    imgX = canvas.width / 2;
+    imgY = canvas.height / 2;
+
+    document.getElementById('zoomSlider').value = 1.0;
+    document.getElementById('cropperSection').classList.remove('d-none');
+
+    setupDragEvents();
+    renderCropper();
+}
+
+function setupDragEvents() {
+    const wrapper = document.getElementById('cropperWrapper');
+
+    wrapper.onmousedown = (e) => {
+        isDragging = true;
+        dragStartX = e.clientX - imgX;
+        dragStartY = e.clientY - imgY;
+    };
+
+    window.onmousemove = (e) => {
+        if (!isDragging) return;
+        imgX = e.clientX - dragStartX;
+        imgY = e.clientY - dragStartY;
+        renderCropper();
+    };
+
+    window.onmouseup = () => {
+        isDragging = false;
+    };
+
+    // Touch support for mobile/tablets
+    wrapper.ontouchstart = (e) => {
+        if (e.touches.length === 1) {
+            isDragging = true;
+            dragStartX = e.touches[0].clientX - imgX;
+            dragStartY = e.touches[0].clientY - imgY;
+        }
+    };
+
+    window.ontouchmove = (e) => {
+        if (!isDragging || e.touches.length !== 1) return;
+        imgX = e.touches[0].clientX - dragStartX;
+        imgY = e.touches[0].clientY - dragStartY;
+        renderCropper();
+    };
+
+    window.ontouchend = () => {
+        isDragging = false;
+    };
+
+    // Wheel to zoom
+    wrapper.onwheel = (e) => {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.05 : -0.05;
+        const slider = document.getElementById('zoomSlider');
+        let newVal = parseFloat(slider.value) + delta;
+        newVal = Math.min(Math.max(newVal, 0.5), 3.0);
+        slider.value = newVal;
+        handleZoom(newVal);
+    };
+}
+
+function handleZoom(val) {
+    imgScale = imgBaseScale * parseFloat(val);
+    renderCropper();
+}
+
+function adjustZoom(delta) {
+    const slider = document.getElementById('zoomSlider');
+    let newVal = parseFloat(slider.value) + delta;
+    newVal = Math.min(Math.max(newVal, 0.5), 3.0);
+    slider.value = newVal;
+    handleZoom(newVal);
+}
+
+function rotateImage() {
+    imgRotation = (imgRotation + 90) % 360;
+    renderCropper();
+}
+
+function resetCrop() {
+    const canvas = document.getElementById('cropperCanvas');
+    imgX = canvas.width / 2;
+    imgY = canvas.height / 2;
+    imgScale = imgBaseScale;
+    imgRotation = 0;
+    document.getElementById('zoomSlider').value = 1.0;
+    renderCropper();
+}
+
+function renderCropper() {
+    if (!sourceImage) return;
+    const canvas = document.getElementById('cropperCanvas');
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    // Move to current position
+    ctx.translate(imgX, imgY);
+    ctx.rotate((imgRotation * Math.PI) / 180);
+    ctx.scale(imgScale, imgScale);
+
+    // Draw image centered on origin
+    ctx.drawImage(
+        sourceImage,
+        -sourceImage.width / 2,
+        -sourceImage.height / 2,
+        sourceImage.width,
+        sourceImage.height
+    );
+
+    ctx.restore();
+}
+
+// ══════════════════════════════════════════════════════════
+//  SAVE CROPPED PHOTO (Exact 512x512 Circle Region)
+// ══════════════════════════════════════════════════════════
 async function saveProfilePhoto() {
-    if (!pendingPhotoBase64) return;
+    if (!sourceImage) return;
+    const canvas = document.getElementById('cropperCanvas');
+
+    // Create high-res 512x512 export canvas
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = 512;
+    exportCanvas.height = 512;
+    const exportCtx = exportCanvas.getContext('2d');
+
+    // Circular clipping
+    exportCtx.beginPath();
+    exportCtx.arc(256, 256, 256, 0, Math.PI * 2);
+    exportCtx.closePath();
+    exportCtx.clip();
+
+    // Map the 220px circle in UI canvas into the 512px export canvas
+    const scaleFactor = 512 / CROP_SIZE;
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+
+    exportCtx.save();
+    exportCtx.translate(256, 256);
+    exportCtx.scale(scaleFactor, scaleFactor);
+
+    // Replay transformations relative to crop center
+    exportCtx.translate(imgX - centerX, imgY - centerY);
+    exportCtx.rotate((imgRotation * Math.PI) / 180);
+    exportCtx.scale(imgScale, imgScale);
+
+    exportCtx.drawImage(
+        sourceImage,
+        -sourceImage.width / 2,
+        -sourceImage.height / 2,
+        sourceImage.width,
+        sourceImage.height
+    );
+    exportCtx.restore();
+
+    const finalBase64 = exportCanvas.toDataURL('image/jpeg', 0.90);
+
     const saveBtn = document.getElementById('savePhotoBtn');
     saveBtn.disabled = true;
     saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
@@ -530,20 +757,19 @@ async function saveProfilePhoto() {
         const res = await fetch('/auth/update-profile-picture', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: pendingPhotoBase64 })
+            body: JSON.stringify({ image: finalBase64 })
         });
         const data = await res.json();
 
         if (data.success) {
-            // Update Avatar on Profile UI in real-time
+            // Update Profile UI instantly
             const avatarImg = document.getElementById('avatarImg');
             const avatarInitial = document.getElementById('avatarInitial');
-            avatarImg.src = data.profile_picture || pendingPhotoBase64;
+            avatarImg.src = data.profile_picture || finalBase64;
             avatarImg.classList.remove('d-none');
             avatarInitial.classList.add('d-none');
 
-            stopCameraStream();
-            if (photoModalInstance) photoModalInstance.hide();
+            closePhotoModal();
         } else {
             alert('Failed to save photo: ' + data.message);
         }
@@ -551,7 +777,7 @@ async function saveProfilePhoto() {
         alert('Error saving photo: ' + err.message);
     } finally {
         saveBtn.disabled = false;
-        saveBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Save as Profile Photo';
+        saveBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Save Selected Photo';
     }
 }
 
@@ -569,8 +795,7 @@ async function removeProfilePhoto() {
             avatarImg.classList.add('d-none');
             avatarInitial.classList.remove('d-none');
 
-            stopCameraStream();
-            if (photoModalInstance) photoModalInstance.hide();
+            closePhotoModal();
         } else {
             alert('Failed to remove photo: ' + data.message);
         }
