@@ -1,8 +1,8 @@
-# 🎯 FaceAttend &mdash; Neural Face Recognition Attendance System
+# 🎯 FaceAttend &mdash; Enterprise Neural Face Recognition Attendance System
 
 <div align="center">
 
-[![Python](https://img.shields.io/badge/Python-3.10.13-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.0.0-000000?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Render%20Cloud-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![SFace Biometrics](https://img.shields.io/badge/SFace_AI-28MB_Lightweight-FF6F00?style=for-the-badge&logo=tensorflow&logoColor=white)](https://github.com/serengil/deepface)
@@ -10,9 +10,9 @@
 [![Render](https://img.shields.io/badge/Deployed_on-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://render.com)
 [![License](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)](LICENSE)
 
-**An enterprise-grade, browser-based biometric attendance ecosystem powered by lightweight neural face recognition and cloud PostgreSQL persistence.**
+**An enterprise-grade, browser-based biometric attendance ecosystem powered by lightweight neural face recognition (SFace), automated corporate shift logic, and cloud PostgreSQL persistence.**
 
-[🚀 Live Demo](https://face-attendance-deepface.onrender.com) &bull; [📖 Architecture](#-system-architecture) &bull; [🗄️ Database](#-cloud-postgresql--dual-engine-database) &bull; [📡 API Docs](#-api-reference) &bull; [⚡ Quickstart](#-getting-started-local)
+[🚀 Live Demo](https://face-attendance-deepface.onrender.com) &bull; [📖 Architecture](#️-system-architecture) &bull; [🏢 Shift Logic](#-corporate-attendance--shift-engine) &bull; [📡 API Docs](#-api-reference-22-endpoints) &bull; [⚡ Quickstart](#-getting-started-local)
 
 </div>
 
@@ -20,35 +20,65 @@
 
 ## 📋 Table of Contents
 
-1. [🌟 Key Highlights & Innovations](#-key-highlights--innovations)
-2. [🏗️ System Architecture](#️-system-architecture)
-3. [🤖 Neural Face Recognition Engine](#-neural-face-recognition-engine)
-4. [🗄️ Cloud PostgreSQL & Dual-Engine Database](#️-cloud-postgresql--dual-engine-database)
-5. [⏰ Background Automation & Scheduler](#-background-automation--scheduler)
-6. [🔐 Authentication & Role Management](#-authentication--role-management)
-7. [📊 Personal Attendance & Analytics](#-personal-attendance--analytics)
-8. [📡 REST API Reference](#-rest-api-reference)
-9. [📁 Project Directory Tree](#-project-directory-tree)
-10. [⚡ Getting Started (Local Development)](#-getting-started-local-development)
-11. [☁️ Production Deployment (Render)](#️-production-deployment-render)
-12. [⚙️ Environment Variables Reference](#️-environment-variables-reference)
-13. [🛡️ Security & Privacy Architecture](#️-security--privacy-architecture)
-14. [📄 License](#-license)
+1. [🌟 Key Highlights & Features](#-key-highlights--features)
+2. [🏢 Corporate Attendance & Shift Engine (6-Day Week)](#-corporate-attendance--shift-engine)
+3. [🏗️ System Architecture](#️-system-architecture)
+4. [🤖 Neural Face Recognition Pipeline](#-neural-face-recognition-pipeline)
+5. [🎨 Interactive Profile Photo Studio](#-interactive-profile-photo-studio)
+6. [📊 Real-Time Live Employee Dashboard](#-real-time-live-employee-dashboard)
+7. [🗄️ Cloud PostgreSQL & Dual-Engine Database](#️-cloud-postgresql--dual-engine-database)
+8. [⏰ Background Automation & Scheduler](#-background-automation--scheduler)
+9. [🔐 Authentication & Role Management](#-authentication--role-management)
+10. [📡 API Reference (22 Endpoints)](#-api-reference-22-endpoints)
+11. [📁 Project Directory Tree](#-project-directory-tree)
+12. [⚡ Getting Started (Local Development)](#-getting-started-local-development)
+13. [☁️ Production Deployment (Render)](#️-production-deployment-render)
+14. [⚙️ Environment Variables Reference](#️-environment-variables-reference)
+15. [🛡️ Security & Anti-Spoofing Architecture](#️-security--anti-spoofing-architecture)
+16. [📄 License](#-license)
 
 ---
 
-## 🌟 Key Highlights & Innovations
+## 🌟 Key Highlights & Features
 
-* **Lightweight Neural Biometrics (SFace):** Only **28MB** memory footprint (compared to VGG-Face at 580MB), optimized specifically for CPU inference on cloud tiers (Render 512MB RAM free plan).
-* **Dual-Engine Smart Database Adapter:** Automatically uses **Render Cloud PostgreSQL** in production when `DATABASE_URL` is set, and falls back to **local SQLite** for offline development.
-* **Non-Blocking Background Warmup:** Preloads the face inference model in a daemon thread on server boot, ensuring sub-second response times without Gunicorn worker timeouts.
+* **Lightweight Neural Biometrics (SFace):** Ultra-fast **28MB** deep neural network (compared to VGG-Face at 580MB), optimized for real-time CPU face recognition on cloud servers (Render free tier / 512MB RAM).
+* **6-Day Corporate Work Week (Mon–Sat):** Complete 9-to-5 automated corporate lifecycle with on-time grace periods, late-entry logging, half-day detection, Sunday weekly off enforcement, and automated shift-end device locking.
+* **Real-Time Live Dashboard:** Live working hours ticker that auto-freezes at 5:00 PM shift end, visual 6-day week strip (Mon–Sat), dynamic shift timeline bar, streak counter (skips Sundays), and auto-sync polling every 60s.
+* **Interactive Circular Photo Cropper Studio:** In-browser canvas editor with drag-and-pan positioning, zoom slider / mouse wheel scaling, 90° rotation, and real-time avatar sync across Dashboard, Top Navbar, and Sidebar.
+* **Dual-Engine Smart Database Adapter:** Automatically uses **Cloud PostgreSQL** in production when `DATABASE_URL` is set, and falls back seamlessly to **Local SQLite** for offline development.
 * **Automated Cron Jobs (`APScheduler`):**
-  * Auto-marks absentees at 5:30 PM IST on working days (Mon–Fri).
-  * Auto-generates daily summary logs at 6:00 PM IST.
-  * Auto-compiles monthly attendance metrics at the end of each month.
-* **Single Identity User Flow:** Unifies full name and login identity. Password visibility toggles (`👁`), live password strength evaluation, and duplicate registration protection.
-* **Strict Anti-Duplicate Tracking:** Mathematical 24-hour timestamp verification prevents users from double-marking attendance on the same day.
-* **Google-Grade UI/UX:** Responsive CSS Grid and Flexbox layout without screen overflow, responsive across 4K displays down to 375px mobile screens.
+  * Auto-marks absentees at 5:00 PM IST (Mon–Sat).
+  * Auto-generates daily summary logs at 5:15 PM IST.
+  * Auto-compiles monthly reports at the end of each month.
+* **Dedicated Admin Control Panel:** Separate secure admin login, full user directory management, and real-time attendance logs with canonical 9-to-5 status resolution.
+
+---
+
+## 🏢 Corporate Attendance & Shift Engine
+
+FaceAttend implements a strict, automated **6-Day Work Week (Monday to Saturday, 09:00 AM – 05:00 PM IST)**:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        CORPORATE DAILY ATTENDANCE TIMELINE                             │
+├───────────────────┬──────────────┬─────────────────────────────────────────────────────┤
+│ Time Window (IST) │ Status       │ System Action                                       │
+├───────────────────┼──────────────┼─────────────────────────────────────────────────────┤
+│ 00:00 – 06:00 AM  │ ❌ REJECTED  │ Device locked — Office not open yet                 │
+│ 06:00 – 09:15 AM  │ 🟢 PRESENT   │ Full day logged (On-Time with 15-min grace period)  │
+│ 09:16 – 01:00 PM  │ 🟡 LATE      │ Late arrival recorded (Full day shift remaining)    │
+│ 01:01 – 05:00 PM  │ 🔵 HALF DAY  │ Partial shift logged (After half-day cutoff)        │
+│ 05:00 PM Sharp    │ 🔴 ABSENT    │ APScheduler auto-marks all unrecorded employees     │
+│ After 05:00 PM    │ ❌ REJECTED  │ Device locked — Rejects after-hours scan attempts   │
+│ Sunday (All Day)  │ ⛔ CLOSED    │ Weekly Off — Scanner rejects check-ins, skips streak │
+└───────────────────┴──────────────┴─────────────────────────────────────────────────────┘
+```
+
+### Attendance Metrics & Calculation Rules:
+* **Working Days Denominator:** Evaluates all **Monday to Saturday** calendar days in the month up to today (Sundays are strictly excluded).
+* **Attendance Rate (%):**
+  $$\text{Rate} = \frac{\text{Present} + \text{Late} + (0.5 \times \text{Half Day})}{\text{Mon–Sat Working Days}} \times 100$$
+* **Current Streak:** Tracks consecutive attended workdays (Mon–Sat). Sundays are seamlessly bypassed without breaking or requiring attendance.
 
 ---
 
@@ -56,242 +86,220 @@
 
 ```mermaid
 graph TD
-    Client["📱 Client Browser (Webcam / Canvas)"] -->|Base64 Frame Stream| Gunicorn["🌐 Gunicorn WSGI Server"]
-    Gunicorn --> FlaskApp["⚙️ Flask Application Engine"]
+    Client["📱 Client Browser (Webcam / Canvas)"] -->|Base64 Image Payload| Gunicorn["🌐 Gunicorn WSGI Server"]
+    Gunicorn --> FlaskApp["⚙️ Flask Core Application Engine"]
     
-    subgraph "Core Services"
+    subgraph "Application Core"
         FlaskApp --> AuthModule["🔐 Flask-Login & PBKDF2 Auth"]
-        FlaskApp --> FaceService["🤖 Face Service (SFace Engine)"]
+        FlaskApp --> FaceService["🤖 Face Service (SFace Model)"]
+        FlaskApp --> PhotoStudio["🎨 Canvas Photo Crop Studio"]
         FlaskApp --> APScheduler["⏰ APScheduler Background Daemon"]
     end
 
-    subgraph "Database Layer (Smart Adapter)"
-        FlaskApp --> DBAdapter["🗄️ Unified DB Adapter (db.py)"]
+    subgraph "Database Layer (Unified DB Adapter)"
+        FlaskApp --> DBAdapter["🗄️ Database Adapter (db.py)"]
         DBAdapter -->|DATABASE_URL present| PostgresDB[("🐘 Render PostgreSQL Cloud")]
-        DBAdapter -->|Offline / Fallback| SQLiteDB[("💾 Local SQLite (attendance.db)")]
+        DBAdapter -->|Offline / Fallback| SQLiteDB[("💾 Local SQLite (attendance_system.db)")]
     end
 
-    subgraph "Automation Triggers"
-        APScheduler -->|17:30 IST| AutoAbsent["❌ Auto-Mark Absentees"]
-        APScheduler -->|18:00 IST| DailySummary["📧 Daily Summaries"]
-        APScheduler -->|Month End| MonthlyReport["📊 Monthly Metrics"]
+    subgraph "Automated Scheduled Tasks"
+        APScheduler -->|17:00 IST Mon-Sat| AutoAbsent["❌ Mark Shift Absentees"]
+        APScheduler -->|17:15 IST Mon-Sat| DailySummary["📧 Daily Shift Summaries"]
+        APScheduler -->|Month End 23:00| MonthlyReport["📊 Compile Monthly Analytics"]
     end
 ```
 
 ---
 
-## 🤖 Neural Face Recognition Engine
+## 🤖 Neural Face Recognition Pipeline
 
-The system uses **SFace** (Spherical Feature Face Recognition), an ultra-efficient deep convolutional network optimized for constrained hardware.
+Face detection and embedding extraction use **SFace** (Spherical Feature Face Recognition), an ultra-efficient deep convolutional neural network:
 
 ```
-[ Webcam Capture ] ──> [ OpenCV Haar Cascade ] ──> [ Face Crop & Normalize ] ──> [ SFace ConvNet ] ──> [ 128-D Vector ]
-                                                                                                               │
-                                                                                                               ▼
-[ Verified Attendance ] <── [ L2 Euclidean Distance < 12.0 ] <── [ Compare with Stored Embeddings ] <──────────┘
+[ Webcam Frame ] ──> [ OpenCV Haar Cascade ] ──> [ 112x112 Normalization ] ──> [ SFace ConvNet ] ──> [ 128-D Embedding ]
+                                                                                                            │
+                                                                                                            ▼
+[ Attendance Verified ] <── [ L2 Euclidean Distance < 12.0 ] <── [ Vector Match vs Stored Users ] <────────┘
 ```
 
-### Recognition Specifications:
-* **Embedding Dimensionality:** 128 float values per face.
-* **Storage Format:** JSON array stored in database `embedding` column.
-* **Default Threshold:** `12.0` L2 Distance (Configurable via `FACE_RECOGNITION_THRESHOLD`).
-* **Performance:** ~200ms – 400ms inference time on standard 1-vCPU cloud instances.
+### Inference Specifications:
+* **Vector Output:** 128-dimensional floating point array.
+* **Threshold:** L2 distance `< 12.0` (configurable via `FACE_RECOGNITION_THRESHOLD`).
+* **Model Size:** **28MB** (preloaded in a background daemon thread on boot to prevent cold start latency).
+* **Speed:** ~150ms – 300ms inference time on standard 1-vCPU cloud instances.
+
+---
+
+## 🎨 Interactive Profile Photo Studio
+
+FaceAttend includes a full-featured, zero-dependency client-side photo editor on **My Profile (`/auth/profile`)**:
+
+1. **Dual Capture Modes:** Upload any image file (`JPG`, `PNG`, `WEBP`) or capture directly using your device camera.
+2. **Free Drag & Pan:** Click & drag or touch-move to reposition the face inside the circular crop guide.
+3. **Zoom Controls:** Range slider ($0.5\times$ to $3.0\times$) + mouse scroll wheel zooming.
+4. **90° Rotation & Reset:** Correct orientation and re-center instantly.
+5. **Exact Circle Export:** Exports the exact framed circle as an optimized $512 \times 512$ Base64 Data URI directly into PostgreSQL/SQLite.
+6. **Real-Time Site-Wide Sync:** Updates instantly across **Dashboard Greeting**, **Top Navbar Menu**, and **Sidebar Footer**.
+
+---
+
+## 📊 Real-Time Live Employee Dashboard
+
+* **Welcome Header:** Shows profile photo, employee name, live date, and dynamic office status chip (`Office Open`, `Opens 6:00 AM`, `Closed`, `Closed Sunday`).
+* **Today Banner:** Live color-coded status card (Green `Present`, Yellow `Late`, Blue `Half Day`, Red `Absent`, Grey `Office Closed`).
+* **Shift Timeline Bar:** Real-time visual progress percentage across the 9-to-5 workday with an interactive check-in pin marker.
+* **Working Hours Counter:** Live `HH:MM:SS` ticker that automatically freezes at 5:00 PM shift end and displays *"Shift ended — final hours"*.
+* **6-Day Week Strip:** Displays attendance status dots for **Mon, Tue, Wed, Thu, Fri, Sat**.
+* **Streak Counter:** Calculates consecutive attended days with Sunday bypass.
 
 ---
 
 ## 🗄️ Cloud PostgreSQL & Dual-Engine Database
 
-The database layer in [`app/models/db.py`](app/models/db.py) provides a single, unified interface for both PostgreSQL and SQLite.
+The database adapter (`app/models/db.py`) automatically auto-detects its environment:
 
-### Relational Schema (6 Core Tables):
-
-```mermaid
-erDiagram
-    USERS ||--o{ ATTENDANCE : logs
-    USERS ||--o{ ATTENDANCE_REPORTS : compiles
-    USERS ||--o{ EMAIL_NOTIFICATIONS : receives
-    USERS ||--o{ AUDIT_LOGS : records
-
-    USERS {
-        int id PK
-        string username UK
-        string email UK
-        string password_hash
-        string full_name
-        text embedding
-        string role
-        string status
-        timestamp created_at
-    }
-
-    ATTENDANCE {
-        int id PK
-        int user_id FK
-        string date
-        string time_in
-        string time_out
-        string status
-        string marked_by
-        timestamp created_at
-    }
-
-    WORKING_HOURS {
-        int id PK
-        int day_of_week UK
-        string start_time
-        string end_time
-        int is_working_day
-    }
-
-    ATTENDANCE_REPORTS {
-        int id PK
-        int user_id FK
-        string report_type
-        string report_date
-        int total_present
-        int total_absent
-        int total_late
-        text report_data
-    }
-
-    EMAIL_NOTIFICATIONS {
-        int id PK
-        int user_id FK
-        string email_type
-        string recipient_email
-        string status
-        timestamp sent_at
-    }
-
-    AUDIT_LOGS {
-        int id PK
-        int user_id FK
-        string action
-        string resource_type
-        string ip_address
-        timestamp timestamp
-    }
+```python
+# Automatic Engine Selection
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    # Production: Cloud PostgreSQL (Render)
+    conn = psycopg2.connect(DATABASE_URL)
+else:
+    # Development: Local SQLite fallback
+    conn = sqlite3.connect('attendance_system.db')
 ```
+
+### Key Database Tables:
+* `users` &mdash; Account credentials, role (`user`/`admin`), PBKDF2 hash, SFace `embedding`, and `profile_picture`.
+* `attendance` &mdash; Daily attendance rows (`date`, `time_in`, `time_out`, `status`, `marked_by`).
+* `working_hours` &mdash; Shift configuration per day of week (Mon–Sat active, Sun off).
+* `attendance_reports` &mdash; Generated daily, weekly, and monthly aggregate analytics.
+* `audit_logs` &mdash; Security audit trail for profile updates, logins, and overrides.
 
 ---
 
 ## ⏰ Background Automation & Scheduler
 
-The application runs an embedded non-blocking background scheduler (`APScheduler`) configured to Indian Standard Time (IST, UTC+5:30).
+Powered by **APScheduler**, scheduled in the **Asia/Kolkata (IST)** timezone:
 
-| Job ID | Frequency | Trigger Time | Action Description |
-|---|---|---|---|
-| `mark_absentees` | Mon &ndash; Fri | `17:30 IST` | Queries all active users without an attendance log for today and records status as `absent`. |
-| `send_summaries` | Daily | `18:00 IST` | Compiles check-in logs and logs summary delivery status. |
-| `monthly_reports` | Monthly (1st) | `23:00 IST` | Aggregates 30-day attendance rates and writes to `attendance_reports`. |
+```python
+# scheduler.py
+scheduler.add_job(
+    AttendanceScheduler.mark_end_of_day_absentees,
+    CronTrigger(hour=17, minute=0, day_of_week='0-5'), # Mon-Sat 5:00 PM IST
+    id='mark_absentees'
+)
+scheduler.add_job(
+    AttendanceScheduler.send_daily_summaries,
+    CronTrigger(hour=17, minute=15, day_of_week='0-5'), # Mon-Sat 5:15 PM IST
+    id='send_summaries'
+)
+scheduler.add_job(
+    AttendanceScheduler.generate_monthly_reports,
+    CronTrigger(day=1, hour=23, minute=0), # Monthly summary
+    id='monthly_reports'
+)
+```
 
 ---
 
 ## 🔐 Authentication & Role Management
 
-| Role | Permissions & Access Scope |
-|---|---|
-| **User** | Mark biometric attendance, access personal attendance history, view monthly attendance rate and streaks, update password. |
-| **Admin** | Full system control: view all registered users, total system attendance logs, export Excel/CSV reports, deactivate users, adjust working hours. |
+* **PBKDF2 Password Hashing:** 100,000 SHA-256 iterations with per-user cryptographic salts.
+* **Persistent Sessions ("Remember Me for 30 Days"):** Tamper-proof, `HttpOnly`, `Secure` signed session cookies.
+* **Role-Based Access Control (RBAC):**
+  * `User` &mdash; Personal dashboard, webcam scanner, attendance history, profile photo studio.
+  * `Admin` &mdash; System management, user directory, global attendance logs, absentee overrides.
+* **Dedicated Portals:** Separate `/auth/login` (with user registration) and `/auth/admin-login` (clean admin gateway).
 
 ---
 
-## 📊 Personal Attendance & Analytics
+## 📡 API Reference (22 Endpoints)
 
-Users have access to an industry-grade personal report dashboard ([`app/templates/report.html`](app/templates/report.html)):
-* **Real-time Stat Cards:** Present days this month, absent days, current consecutive streak, and attendance percentage.
-* **Granular Filter Bar:** Filter history by specific month (`YYYY-MM`), status (`present`, `absent`, `late`), or exact date.
-* **Auto Work Hours Calculation:** Dynamically calculates total shift duration when check-in and check-out timestamps are present.
+### 🌐 JSON REST APIs
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/recognize-face` | Biometric face recognition engine & attendance punch-in |
+| `POST` | `/api/register-user` | Face enrollment & SFace 128-D embedding extraction |
+| `GET` | `/api/attendance` | Real-time user attendance logs & canonical status resolution |
+| `GET` | `/api/users` | List all registered users with biometric status |
+| `POST` | `/auth/update-profile-picture` | Save real-time cropped profile photo / webcam snapshot |
+| `POST` | `/auth/remove-profile-picture` | Delete user profile picture |
 
----
+### 🔐 Auth & Session Endpoints
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET`, `POST` | `/auth/login` | Employee login portal & session creation |
+| `GET`, `POST` | `/auth/admin-login` | Dedicated Administrator control login portal |
+| `GET`, `POST` | `/auth/register` | Employee account self-registration |
+| `GET`, `POST` | `/auth/change-password` | Secure password update with hash verification |
+| `GET` | `/auth/logout` | Secure session termination |
 
-## 📡 REST API Reference
-
-### Face Registration & Matching
-```http
-POST /api/register
-Content-Type: application/json
-
-{
-  "user_id": 1,
-  "image": "data:image/jpeg;base64,..."
-}
-```
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "Face registered successfully",
-  "data": { "user_id": 1, "status": "active" }
-}
-```
-
-```http
-POST /api/recognize
-Content-Type: application/json
-
-{
-  "image": "data:image/jpeg;base64,..."
-}
-```
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "match": true,
-  "user": { "id": 1, "name": "Suprabh Sharma" },
-  "distance": 4.32,
-  "threshold": 12.0
-}
-```
-
-### Attendance Operations
-| Method | Endpoint | Description | Auth Required |
-|---|---|---|---|
-| `GET` | `/api/attendance` | Get attendance records for current user | Yes (Session) |
-| `POST` | `/api/attendance/mark` | Manually mark attendance (Admin only) | Yes (Admin) |
-| `GET` | `/api/users` | List all registered active users | Yes (Admin) |
-| `GET` | `/health` | Cloud provider liveness probe | No |
+### 🖥️ Frontend Web Views
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/` | Root entry point (forces fresh session $\rightarrow$ login) |
+| `GET` | `/dashboard` | Live employee dashboard (timeline, live counter, 6-day week strip) |
+| `GET` | `/camera` | Real-time biometric camera attendance kiosk |
+| `GET` | `/report` | Attendance analytics, date filters, and working hours table |
+| `GET` | `/auth/profile` | My Profile page with interactive circular photo cropper studio |
+| `GET` | `/register` | Biometric face capture onboarding view |
+| `GET` | `/admin` | Administrator Control Panel & overview statistics |
+| `GET` | `/admin/users` | Admin user directory & account management |
+| `GET` | `/admin/attendance` | Admin complete attendance log with canonical statuses |
+| `GET` | `/health` | Cloud deployment health check probe (Render / Docker) |
+| `GET` | `/static/<path:filename>` | Static asset engine (CSS, JS, 3D Logo) |
 
 ---
 
 ## 📁 Project Directory Tree
 
-```text
+```
 face-attendance-deepface/
 ├── app/
-│   ├── __init__.py               # Flask application factory & background workers
+│   ├── __init__.py               # Flask app factory, LoginManager, DB init, scheduler
 │   ├── models/
-│   │   ├── __init__.py
-│   │   └── db.py                 # Smart Dual-Engine Adapter (PostgreSQL / SQLite)
+│   │   └── db.py                 # Dual-engine DB adapter, 9-to-5 corporate shift rules
 │   ├── routes/
-│   │   ├── api.py                # Biometric API endpoints & lazy model cache
-│   │   ├── auth.py               # Authentication, registration & session handlers
-│   │   └── views.py              # Front-end UI page controllers
+│   │   ├── api.py                # REST APIs (/api/recognize-face, /api/attendance)
+│   │   ├── auth.py               # Flask-Login routes, profile picture endpoints
+│   │   └── views.py              # HTML template rendering routes & admin views
 │   ├── services/
-│   │   ├── email_service.py      # Notification dispatcher
-│   │   ├── face_service.py       # SFace embedding extractor & matcher
-│   │   └── scheduler.py          # APScheduler background cron jobs
+│   │   ├── face_service.py       # OpenCV Haar Cascade & SFace 128-D embedding engine
+│   │   └── scheduler.py          # APScheduler cron jobs (5 PM auto-absent, summaries)
 │   ├── static/
-│   │   ├── css/style.css         # Core CSS design system
-│   │   └── js/main.js            # Toast notifications & UI helpers
-│   ├── templates/
-│   │   ├── admin/                # Admin dashboards & user roster views
-│   │   ├── auth/                 # 3-in-1 Authentication Portal
-│   │   ├── base.html             # Main dashboard app shell
-│   │   ├── camera.html           # Live camera attendance scanner
-│   │   ├── index.html            # User dashboard
-│   │   ├── register.html         # In-app webcam face enrollment
-│   │   ├── report.html           # Personal attendance analytics
-│   │   ├── navbar.html           # Top navigation bar
-│   │   └── sidebar.html          # Collapsible responsive sidebar
-│   └── utils/
-│       └── logging_config.py     # Rotating file & console logger
-├── attendance_system.db          # Local development SQLite file (auto-generated)
-├── render.yaml                   # Render Infrastructure-as-Code blueprint
-├── requirements.txt              # Production Python dependencies
-├── run.py                        # WSGI entry point
-└── README.md                     # Documentation
+│   │   ├── css/
+│   │   │   └── style.css         # Design tokens, responsive shell layout
+│   │   ├── img/
+│   │   │   ├── logo.png          # 3D Camera App Icon (Favicon & Brand Logo)
+│   │   │   └── logo.jpg          # High-resolution JPEG logo asset
+│   │   └── js/
+│   └── templates/
+│       ├── 404.html              # Custom 404 Not Found error page
+│       ├── 500.html              # Custom 500 Server Error page
+│       ├── base.html             # App shell with favicon, navbar & sidebar includes
+│       ├── camera.html           # Live attendance camera scanner kiosk
+│       ├── index.html            # Live employee dashboard (Timeline, 5 PM counter, Week strip)
+│       ├── login.html            # Secondary login view
+│       ├── navbar.html           # Top navbar with real-time profile picture dropdown
+│       ├── register.html         # Face enrollment webcam capture view
+│       ├── report.html           # Historical attendance analytics with Mon-Sat metrics
+│       ├── sidebar.html          # Sidebar navigation with 3D logo and user avatar
+│       ├── admin/
+│       │   ├── attendance.html   # Admin global attendance log with status badges
+│       │   ├── dashboard.html    # Admin system overview and quick metrics
+│       │   └── users.html        # Admin user directory management
+│       └── auth/
+│           ├── change_password.html # Secure password change portal
+│           ├── login.html        # Primary login portal (User & Admin switcher)
+│           ├── profile.html      # My Profile + Interactive Canvas Photo Cropper Studio
+│           └── register.html     # Split-screen modern account registration
+├── .env.example                  # Environment configuration template
+├── .gitignore                    # Git ignore rules
+├── Procfile                      # Gunicorn production startup command
+├── README.md                     # Project documentation
+├── render.yaml                   # Render Blueprint Infrastructure-as-Code
+└── requirements.txt              # Production Python dependencies
 ```
 
 ---
@@ -320,75 +328,65 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Create Local `.env` Configuration
-Create a `.env` file in the root directory:
-```env
-FLASK_ENV=development
-SECRET_KEY=local-dev-secret-key-change-in-prod
-ADMIN_USERNAME=admin
-ADMIN_EMAIL=admin@gmail.com
-ADMIN_PASSWORD=Admin12345
-FACE_RECOGNITION_THRESHOLD=12.0
-SCHEDULER_ENABLED=true
+### 4. Configure Environment Variables
+Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
 ```
+*(Leave `DATABASE_URL` empty to automatically use local SQLite).*
 
-### 5. Launch the Application
+### 5. Run the Application
 ```bash
 python run.py
 ```
-Open [http://127.0.0.1:5000](http://127.0.0.1:5000) in your browser.
+Open [http://localhost:5000](http://localhost:5000) in your browser.
 
 ---
 
 ## ☁️ Production Deployment (Render)
 
-### 1. Deploy via `render.yaml` Blueprint
-1. Fork or push this repository to your GitHub account.
-2. In the **[Render Dashboard](https://dashboard.render.com)**, click **New +** ➔ **Blueprint**.
-3. Select this repository. Render will automatically parse `render.yaml` and configure the web service.
+The project includes `render.yaml` for 1-click cloud deployment with managed PostgreSQL:
 
-### 2. Connect Free Render PostgreSQL (Permanent Storage)
-1. In Render, click **New +** ➔ **PostgreSQL**.
-2. Set Name to `attendance-db`, choose Plan **Free**, and click **Create Database**.
-3. Copy the **Internal Database URL**.
-4. In your Web Service settings ➔ **Environment**, add:
-   * **Key:** `DATABASE_URL`
-   * **Value:** `postgres://user:password@dpg-xxxxxx-a:5432/attendance_db`
-5. Click **Save Changes**. The server will automatically migrate tables to PostgreSQL on startup.
+1. Push your repository to GitHub.
+2. In [Render Dashboard](https://dashboard.render.com), click **New +** &rarr; **Blueprint**.
+3. Connect your repository. Render will automatically provision:
+   * **Web Service:** Python 3.10 environment with Gunicorn WSGI.
+   * **Database:** Managed PostgreSQL instance with auto-injected `DATABASE_URL`.
+4. Deploy completes in under 3 minutes with automated SSL (HTTPS).
 
 ---
 
 ## ⚙️ Environment Variables Reference
 
-| Variable Name | Default Value | Description |
+| Variable | Default | Description |
 |---|---|---|
-| `FLASK_ENV` | `production` | Environment mode (`development` or `production`). |
-| `SECRET_KEY` | *(Required)* | Secret key for signing session cookies. |
-| `DATABASE_URL` | *(None)* | PostgreSQL connection URI. If omitted, SQLite is used. |
-| `ADMIN_USERNAME` | `admin` | Default administrator username created on boot. |
-| `ADMIN_PASSWORD` | `Admin12345` | Default administrator password. |
-| `ADMIN_EMAIL` | `admin@gmail.com` | Administrator email address. |
-| `FACE_RECOGNITION_THRESHOLD` | `12.0` | SFace L2 distance threshold (lower = stricter). |
-| `SCHEDULER_ENABLED` | `true` | Enables or disables background cron jobs. |
-| `SESSION_TIMEOUT_MINUTES` | `30` | Inactivity session timeout in minutes. |
+| `FLASK_ENV` | `development` | App environment (`development` or `production`) |
+| `SECRET_KEY` | `dev-secret-...` | Cryptographic secret for signing session cookies |
+| `DATABASE_URL` | *None* | PostgreSQL connection string (uses SQLite if unset) |
+| `SCHEDULER_ENABLED` | `true` | Enables APScheduler background automation |
+| `FACE_RECOGNITION_THRESHOLD` | `12.0` | SFace L2 distance threshold for face match |
+| `ADMIN_USERNAME` | `admin` | Default administrator account username |
+| `ADMIN_EMAIL` | `admin@faceattend.com` | Default administrator email |
+| `ADMIN_PASSWORD` | `Admin@123` | Default administrator password |
 
 ---
 
 ## 🛡️ Security & Privacy Architecture
 
-* **PBKDF2-HMAC-SHA256:** Passwords are never stored in plaintext. They are salted and hashed with 100,000 PBKDF2 iterations.
-* **Mathematical Vector Irreversibility:** Stored face embeddings are one-way 128-dimensional mathematical coordinates. Original raw face photos are discarded immediately after embedding generation.
-* **Rate Limiting & Timestamp Locks:** 24-hour verification lock prevents multiple attendance check-ins within a single calendar day.
-* **Secure Cookie Flags:** In production, session cookies enforce `HttpOnly`, `SameSite=Lax`, and `Secure` SSL transmission.
+1. **Biometric Privacy:** Raw camera frames are processed in memory and **never stored to disk**. Only mathematical 128-D vector embeddings are stored.
+2. **Tamper-Proof Timestamps:** Server-enforced Asia/Kolkata (IST) timestamps prevent client clock manipulation.
+3. **Strict After-Hours Locking:** Biometric scans after 5:00 PM are rejected at the database level to prevent retroactive attendance tampering.
+4. **Credential Security:** All passwords hashed using PBKDF2-HMAC-SHA256 with unique 32-byte salts.
+5. **CSRF & XSS Hardening:** `HttpOnly`, `SameSite=Lax`, and `Secure` cookie policies across all session cookies.
 
 ---
 
 ## 📄 License
 
-Distributed under the **MIT License**. See `LICENSE` for more information.
+This project is licensed under the MIT License &mdash; see the [LICENSE](LICENSE) file for details.
+
+---
 
 <div align="center">
-
-Built with ❤️ by **[Suprabh Sharma](https://github.com/SuprabhSharma)**
-
+  <p>&copy; 2026 Face Recognition Attendance System. All rights reserved.</p>
 </div>
