@@ -451,6 +451,58 @@ def get_user_by_id(user_id):
     return user
 
 
+def delete_user_completely(user_id, admin_id=None):
+    """
+    Completely and permanently delete a user and all their associated records:
+    - attendance records
+    - email notifications
+    - attendance reports
+    - user account and facial embeddings
+    Also records an audit log entry.
+    Cannot delete users with role == 'admin'.
+    """
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        # 1. Fetch user to verify existence and protect admin
+        c.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+        user = c.fetchone()
+        if not user:
+            conn.close()
+            return False, "User not found"
+        
+        user_dict = dict(user)
+        if user_dict.get('role') == 'admin':
+            conn.close()
+            return False, "Cannot delete an Administrator account"
+
+        # 2. Atomic deletion across all tables
+        c.execute('DELETE FROM attendance WHERE user_id = ?', (user_id,))
+        c.execute('DELETE FROM email_notifications WHERE user_id = ?', (user_id,))
+        c.execute('DELETE FROM attendance_reports WHERE user_id = ?', (user_id,))
+        c.execute('DELETE FROM users WHERE id = ?', (user_id,))
+        conn.commit()
+        conn.close()
+
+        # 3. Log audit event
+        try:
+            log_audit(
+                user_id=admin_id,
+                action='delete_user',
+                resource_type='users',
+                resource_id=user_id,
+                details=f"Permanently deleted user '{user_dict.get('username')}' ({user_dict.get('full_name')}) and all biometric/attendance history."
+            )
+        except Exception:
+            pass
+
+        return True, f"User '{user_dict.get('username')}' deleted successfully"
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return False, str(e)
+
+
 def authenticate_user(username, password):
     """Authenticate user with username and password"""
     user = get_user_by_username(username)

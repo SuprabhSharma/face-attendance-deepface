@@ -50,6 +50,49 @@ def admin_users():
     users = get_all_users_admin()
     return render_template('admin/users.html', users=users)
 
+@views_bp.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@role_required('admin')
+def delete_user_route(user_id):
+    from flask import request, jsonify, flash
+    from app.models.db import get_user_by_id, verify_password, delete_user_completely
+
+    # 1. Extract admin password from JSON or Form body
+    if request.is_json:
+        data = request.get_json() or {}
+        admin_password = data.get('admin_password', '').strip()
+    else:
+        admin_password = request.form.get('admin_password', '').strip()
+
+    if not admin_password:
+        msg = "Admin password is required to authorize deletion."
+        if request.is_json:
+            return jsonify({'success': False, 'message': msg}), 400
+        flash(msg, 'error')
+        return redirect(url_for('views.admin_users'))
+
+    # 2. Re-authenticate the active admin
+    admin_record = get_user_by_id(current_user.id)
+    if not admin_record or not verify_password(admin_record['password_hash'], admin_password):
+        msg = "Incorrect admin password. Authorization failed."
+        if request.is_json:
+            return jsonify({'success': False, 'message': msg}), 403
+        flash(msg, 'error')
+        return redirect(url_for('views.admin_users'))
+
+    # 3. Perform complete atomic purge
+    success, msg = delete_user_completely(user_id, admin_id=current_user.id)
+    if not success:
+        if request.is_json:
+            return jsonify({'success': False, 'message': msg}), 400
+        flash(msg, 'error')
+        return redirect(url_for('views.admin_users'))
+
+    if request.is_json:
+        return jsonify({'success': True, 'message': msg})
+    flash(msg, 'success')
+    return redirect(url_for('views.admin_users'))
+
 @views_bp.route('/admin/attendance')
 @login_required
 @role_required('admin')
