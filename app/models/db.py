@@ -538,13 +538,22 @@ def get_all_users_admin():
     conn = get_db_connection()
     c = conn.cursor()
     c.execute('''
-        SELECT id, username, email, full_name, role, status, is_verified, created_at, updated_at
+        SELECT id, username, email, full_name, role, status, is_verified, embedding, profile_picture, created_at, updated_at
         FROM users
         ORDER BY created_at DESC, id DESC
     ''')
     users = c.fetchall()
     conn.close()
-    return users
+
+    cleaned = []
+    for u in users:
+        d = dict(u)
+        if isinstance(d.get('created_at'), datetime):
+            d['created_at'] = d['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+        if isinstance(d.get('updated_at'), datetime):
+            d['updated_at'] = d['updated_at'].strftime('%Y-%m-%d %H:%M:%S')
+        cleaned.append(d)
+    return cleaned
 
 
 def ensure_default_admin():
