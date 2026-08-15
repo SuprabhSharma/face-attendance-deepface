@@ -2,12 +2,10 @@
 <nav id="appSidebar" class="sidebar bg-dark navbar-dark d-flex flex-column sticky-top">
     <!-- Brand -->
     <div class="sidebar-brand d-flex align-items-center px-3 py-4 border-bottom border-secondary">
-        <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3" style="width: 45px; height: 45px;">
-            <i class="bi bi-camera-fill"></i>
-        </div>
+        <img src="{{ url_for('static', filename='img/logo.png') }}" class="rounded-3 shadow-sm me-3" style="width: 44px; height: 44px; object-fit: cover;" alt="FaceAttend Logo">
         <div>
-            <h5 class="mb-0 text-white">FaceAttend</h5>
-            <small class="text-muted">v1.0</small>
+            <h5 class="mb-0 text-white fw-bold">FaceAttend</h5>
+            <small class="text-muted">Corporate Biometric</small>
         </div>
     </div>
 
