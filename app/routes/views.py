@@ -1,7 +1,8 @@
-from flask import Blueprint, render_template, redirect, url_for
+from flask import Blueprint, render_template, redirect, url_for, send_from_directory, current_app
 from flask_login import login_required, current_user, logout_user
 from app.models.db import get_all_users_admin, get_all_attendance_admin
 from app.routes.auth import role_required
+import os
 
 views_bp = Blueprint('views', __name__)
 
@@ -99,6 +100,25 @@ def delete_user_route(user_id):
 def admin_attendance():
     attendance_records = get_all_attendance_admin(limit=1000)
     return render_template('admin/attendance.html', attendance_records=attendance_records)
+
+# ── PWA: Serve sw.js from root scope (browsers require this exact path) ──
+@views_bp.route('/sw.js')
+def service_worker():
+    """Service Worker must be served from root scope for full PWA coverage."""
+    static_dir = os.path.join(current_app.root_path, 'static')
+    response = send_from_directory(static_dir, 'sw.js')
+    response.headers['Content-Type'] = 'application/javascript'
+    response.headers['Service-Worker-Allowed'] = '/'
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return response
+
+@views_bp.route('/manifest.json')
+def pwa_manifest():
+    """Serve PWA manifest from root path for broad browser compatibility."""
+    static_dir = os.path.join(current_app.root_path, 'static')
+    response = send_from_directory(static_dir, 'manifest.json')
+    response.headers['Content-Type'] = 'application/manifest+json'
+    return response
 
 # Error handlers
 @views_bp.app_errorhandler(404)
