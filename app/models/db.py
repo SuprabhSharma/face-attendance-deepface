@@ -540,7 +540,7 @@ def get_all_users_admin():
     c.execute('''
         SELECT id, username, email, full_name, role, status, is_verified, embedding, profile_picture, created_at, updated_at
         FROM users
-        ORDER BY created_at DESC, id DESC
+        ORDER BY (CASE WHEN role = 'admin' THEN 0 ELSE 1 END), created_at DESC, id DESC
     ''')
     users = c.fetchall()
     conn.close()
