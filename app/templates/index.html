@@ -1,172 +1,602 @@
 {% extends "base.html" %}
+{% block title %}Dashboard — FaceAttend{% endblock %}
 
-{% block title %}Dashboard - Face Recognition Attendance{% endblock %}
+{% block extra_css %}
+<style>
+/* ── Google Font ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+.dash-root { font-family: 'Inter', sans-serif; }
+
+/* ── Live Clock ── */
+.clock-block { line-height: 1; }
+.clock-time  { font-size: 2rem; font-weight: 800; letter-spacing: -1px; color: #0f172a; }
+.clock-date  { font-size: .82rem; color: #64748b; font-weight: 500; margin-top: 2px; }
+
+/* ── Today Banner ── */
+.today-banner {
+    border-radius: 16px;
+    padding: 18px 24px;
+    display: flex; align-items: center; gap: 16px;
+    position: relative; overflow: hidden;
+    transition: box-shadow .3s;
+}
+.today-banner::after {
+    content: '';
+    position: absolute; right: -20px; top: -20px;
+    width: 100px; height: 100px; border-radius: 50%;
+    background: rgba(255,255,255,.12);
+}
+.banner-present  { background: linear-gradient(120deg,#16a34a,#22c55e); color:#fff; }
+.banner-late     { background: linear-gradient(120deg,#b45309,#f59e0b); color:#fff; }
+.banner-half_day { background: linear-gradient(120deg,#1d4ed8,#3b82f6); color:#fff; }
+.banner-absent   { background: linear-gradient(120deg,#991b1b,#ef4444); color:#fff; }
+.banner-idle     { background: linear-gradient(120deg,#374151,#6b7280); color:#fff; }
+.banner-icon { font-size: 2.2rem; flex-shrink: 0; }
+.banner-title { font-size: 1.1rem; font-weight: 700; margin: 0; }
+.banner-sub   { font-size: .82rem; opacity: .88; margin: 0; }
+.banner-action {
+    margin-left: auto; flex-shrink: 0;
+    background: rgba(255,255,255,.22); color: #fff;
+    border: 1.5px solid rgba(255,255,255,.4);
+    border-radius: 10px; padding: 8px 18px;
+    font-size: .82rem; font-weight: 600;
+    text-decoration: none; transition: background .2s;
+}
+.banner-action:hover { background: rgba(255,255,255,.35); color: #fff; }
+
+/* ── Shift Timeline ── */
+.shift-wrap { background: #fff; border-radius: 14px; padding: 18px 20px; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
+.shift-title { font-size: .75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 12px; }
+.shift-bar-outer {
+    height: 10px; border-radius: 99px;
+    background: #f1f5f9; position: relative; overflow: visible;
+}
+.shift-bar-fill {
+    height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, #16a34a, #22c55e);
+    transition: width .6s cubic-bezier(.4,0,.2,1);
+    position: relative;
+}
+.shift-pin {
+    position: absolute; right: -1px; top: 50%;
+    transform: translateY(-50%);
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; border: 3px solid #16a34a;
+    box-shadow: 0 2px 6px rgba(22,163,74,.4);
+}
+.shift-labels { display:flex; justify-content: space-between; margin-top: 6px; }
+.shift-lbl { font-size: .7rem; color: #94a3b8; font-weight: 500; }
+.shift-checkin-mark {
+    position: absolute; top: 50%;
+    transform: translateY(-50%);
+    width: 3px; height: 22px; border-radius: 2px;
+    background: #f59e0b; z-index: 2;
+}
+
+/* ── Live Counter ── */
+.live-counter-box {
+    background: #fff; border-radius: 14px;
+    padding: 18px 20px; box-shadow: 0 1px 6px rgba(0,0,0,.07);
+    display: flex; flex-direction: column; height: 100%;
+}
+.live-digits {
+    font-size: 2rem; font-weight: 800;
+    letter-spacing: -1px; color: #0f172a;
+    font-variant-numeric: tabular-nums;
+    min-width: 150px;
+}
+.live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-right: 6px; animation: pulse-dot 1.5s infinite; }
+@keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.7)} }
+.live-sub { font-size: .75rem; color: #64748b; font-weight: 500; margin-top: 4px; }
+
+/* ── Week Strip ── */
+.week-wrap { background: #fff; border-radius: 14px; padding: 18px 20px; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
+.week-day-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
+.week-day-name { font-size: .68rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; }
+.week-dot {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .8rem; font-weight: 700; transition: transform .2s;
+}
+.week-dot:hover { transform: scale(1.15); }
+.wdot-present  { background: #dcfce7; color: #16a34a; }
+.wdot-late     { background: #fef9c3; color: #ca8a04; }
+.wdot-half_day { background: #dbeafe; color: #2563eb; }
+.wdot-absent   { background: #fee2e2; color: #dc2626; }
+.wdot-future   { background: #f1f5f9; color: #cbd5e1; }
+.wdot-today    { box-shadow: 0 0 0 3px #3b82f6; }
+.week-date     { font-size: .65rem; color: #cbd5e1; font-weight: 500; }
+
+/* ── Streak Card ── */
+.streak-card { background: linear-gradient(135deg,#1e293b,#334155); border-radius: 14px; padding: 18px 20px; color: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.1); }
+.streak-number { font-size: 3rem; font-weight: 800; line-height: 1; }
+.streak-label  { font-size: .78rem; opacity: .7; margin-top: 4px; }
+.streak-fire   { font-size: 2rem; }
+
+/* ── Quick Actions ── */
+.qaction {
+    border-radius: 14px; padding: 16px 14px;
+    text-decoration: none; display: flex; flex-direction: column;
+    align-items: center; gap: 8px; transition: all .2s;
+    border: 2px solid transparent; flex: 1; min-width: 80px;
+}
+.qaction:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.1); }
+.qaction-icon { font-size: 1.6rem; }
+.qaction-label { font-size: .75rem; font-weight: 600; text-align: center; }
+.qa-scan   { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
+.qa-scan:hover { background: #2563eb; color: #fff; }
+.qa-report { background: #f0fdf4; color: #16a34a; border-color: #bbf7d0; }
+.qa-report:hover { background: #16a34a; color: #fff; }
+.qa-reg    { background: #fdf4ff; color: #9333ea; border-color: #e9d5ff; }
+.qa-reg:hover { background: #9333ea; color: #fff; }
+.qa-admin  { background: #fff7ed; color: #ea580c; border-color: #fed7aa; }
+.qa-admin:hover { background: #ea580c; color: #fff; }
+
+/* ── Sync ticker ── */
+.sync-bar { display: flex; align-items: center; gap: 8px; }
+.sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; animation: pulse-dot 2s infinite; }
+.sync-text { font-size: .72rem; color: #94a3b8; }
+
+/* ── Section title ── */
+.sec-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; margin-bottom: 12px; }
+
+/* ── Countdown chip ── */
+.chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    border-radius: 99px; padding: 3px 10px;
+    font-size: .72rem; font-weight: 600;
+}
+.chip-open   { background: #dcfce7; color: #16a34a; }
+.chip-late   { background: #fef9c3; color: #ca8a04; }
+.chip-closed { background: #fee2e2; color: #dc2626; }
+</style>
+{% endblock %}
 
 {% block content %}
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('pageTitle').textContent = 'Dashboard';
-    });
-</script>
+<div class="dash-root">
 
-<div class="row">
-    <div class="col-12 mb-4">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h2 class="mb-1 fw-bold">Welcome back, {{ current_user.username }}!</h2>
-                <p class="text-muted mb-0">Here's your attendance overview</p>
+    <!-- ── ROW 0: Header ─────────────────────────────────────── -->
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
+        <div class="clock-block">
+            <div class="clock-time" id="liveClock">--:--:--</div>
+            <div class="clock-date" id="liveDate">Loading...</div>
+        </div>
+        <div class="d-flex flex-column align-items-end gap-1">
+            <div class="sync-bar">
+                <div class="sync-dot"></div>
+                <span class="sync-text" id="syncTicker">Syncing...</span>
+            </div>
+            <span id="officeChip" class="chip chip-open">● Office Open</span>
+        </div>
+    </div>
+
+    <!-- ── ROW 1: Today Banner ───────────────────────────────── -->
+    <div id="todayBanner" class="today-banner banner-idle mb-4">
+        <div class="banner-icon" id="bannerIcon">⏳</div>
+        <div>
+            <p class="banner-title" id="bannerTitle">Loading attendance...</p>
+            <p class="banner-sub"  id="bannerSub">Fetching your data</p>
+        </div>
+        <a href="/camera" class="banner-action d-none d-sm-block">
+            <i class="bi bi-camera-video-fill me-1"></i> Go to Camera
+        </a>
+    </div>
+
+    <!-- ── ROW 2: Shift Timeline + Live Counter ──────────────── -->
+    <div class="row g-3 mb-3">
+        <div class="col-lg-8">
+            <div class="shift-wrap h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="shift-title">Today's Shift Progress</div>
+                    <div class="d-flex gap-2">
+                        <span style="font-size:.7rem;color:#94a3b8;">
+                            <span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:3px;"></span>Worked
+                        </span>
+                        <span style="font-size:.7rem;color:#94a3b8;">
+                            <span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:2px;margin-right:3px;"></span>Check-in
+                        </span>
+                    </div>
+                </div>
+                <div class="shift-bar-outer">
+                    <div class="shift-bar-fill" id="shiftFill" style="width:0%">
+                        <div class="shift-pin"></div>
+                    </div>
+                    <div class="shift-checkin-mark d-none" id="checkinPin"></div>
+                </div>
+                <div class="shift-labels">
+                    <span class="shift-lbl">6:00 AM</span>
+                    <span class="shift-lbl">9:00 AM</span>
+                    <span class="shift-lbl" style="font-weight:700;color:#374151;">Office Hours</span>
+                    <span class="shift-lbl">1:00 PM</span>
+                    <span class="shift-lbl">5:00 PM</span>
+                </div>
+                <div class="d-flex gap-3 mt-3" style="font-size:.78rem;color:#64748b;">
+                    <span><i class="bi bi-clock me-1"></i>Shift: 9:00 AM – 5:00 PM</span>
+                    <span><i class="bi bi-shield-check me-1"></i>Grace: 15 min</span>
+                    <span id="shiftStatus" class="fw-semibold"></span>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="live-counter-box">
+                <div class="sec-title">
+                    <span class="live-dot" id="liveCounterDot"></span>Live Working Hours
+                </div>
+                <div class="live-digits" id="liveCounter">--:--:--</div>
+                <div class="live-sub" id="liveCounterSub">Waiting for check-in</div>
+                <div class="mt-auto pt-3" style="border-top:1px solid #f1f5f9;margin-top:12px;">
+                    <div style="font-size:.72rem;color:#94a3b8;">Check-in time</div>
+                    <div style="font-size:.9rem;font-weight:700;color:#0f172a;" id="checkinDisplay">--:-- --</div>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Statistics Cards -->
-<div class="row mb-4">
-    {% if current_user.role == 'admin' %}
-    <!-- Total Users Card — Admin only -->
-    <div class="col-lg-4 col-md-6 mb-3">
-        <div class="card card-stat border-0 shadow-sm h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <p class="text-muted small mb-1">Total Users</p>
-                        <h3 class="mb-0 fw-bold" id="totalUsers">--</h3>
-                        <small class="text-muted">Registered users</small>
-                    </div>
-                    <div class="stat-icon-box bg-primary bg-opacity-10">
-                        <i class="bi bi-people-fill text-primary" style="font-size: 1.5rem;"></i>
-                    </div>
+    <!-- ── ROW 3: Week Strip + Streak ───────────────────────── -->
+    <div class="row g-3 mb-3">
+        <div class="col-lg-8">
+            <div class="week-wrap">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="sec-title mb-0">This Week</div>
+                    <span style="font-size:.72rem;color:#94a3b8;" id="weekRangeLabel"></span>
                 </div>
-                <div class="mt-3 pt-3 border-top">
-                    <a href="/admin" class="text-primary text-decoration-none small fw-semibold">
-                        Admin Panel <i class="bi bi-arrow-right"></i>
+                <div class="d-flex gap-2" id="weekStrip"></div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="streak-card h-100 d-flex flex-column justify-content-between">
+                <div class="sec-title mb-1" style="opacity:.5;color:#fff;">Current Streak</div>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="streak-number" id="streakCount">0</div>
+                    <div class="streak-fire">🔥</div>
+                </div>
+                <div class="streak-label" id="streakLabel">consecutive working days</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── ROW 4: Quick Actions ──────────────────────────────── -->
+    <div class="row g-3">
+        <div class="col-12">
+            <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 1px 6px rgba(0,0,0,.07);">
+                <div class="sec-title">Quick Actions</div>
+                <div class="d-flex gap-3 flex-wrap">
+                    <a href="/camera" class="qaction qa-scan">
+                        <span class="qaction-icon">📸</span>
+                        <span class="qaction-label">Mark Attendance</span>
                     </a>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Today's Attendance Card -->
-    <div class="col-lg-4 col-md-6 mb-3">
-        <div class="card card-stat border-0 shadow-sm h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <p class="text-muted small mb-1">Today's Attendance</p>
-                        <h3 class="mb-0 fw-bold" id="todayAttendance">--</h3>
-                        <small class="text-muted" id="attendanceDate">--/--/----</small>
-                    </div>
-                    <div class="stat-icon-box bg-success bg-opacity-10">
-                        <i class="bi bi-check-circle-fill text-success" style="font-size: 1.5rem;"></i>
-                    </div>
-                </div>
-                <div class="mt-3 pt-3 border-top">
-                    <a href="/camera" class="text-success text-decoration-none small fw-semibold">
-                        Mark Attendance <i class="bi bi-arrow-right"></i>
+                    <a href="/report" class="qaction qa-report">
+                        <span class="qaction-icon">📊</span>
+                        <span class="qaction-label">View Reports</span>
                     </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Total Attendance Card -->
-    <div class="col-lg-4 col-md-6 mb-3">
-        <div class="card card-stat border-0 shadow-sm h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <p class="text-muted small mb-1">My Total Records</p>
-                        <h3 class="mb-0 fw-bold" id="totalAttendance">--</h3>
-                        <small class="text-muted">All attendance records</small>
-                    </div>
-                    <div class="stat-icon-box bg-info bg-opacity-10">
-                        <i class="bi bi-graph-up text-info" style="font-size: 1.5rem;"></i>
-                    </div>
-                </div>
-                <div class="mt-3 pt-3 border-top">
-                    <a href="/report" class="text-info text-decoration-none small fw-semibold">
-                        View Reports <i class="bi bi-arrow-right"></i>
+                    <a href="/register" class="qaction qa-reg">
+                        <span class="qaction-icon">🪪</span>
+                        <span class="qaction-label">Register Face</span>
                     </a>
+                    {% if current_user.role == 'admin' %}
+                    <a href="/admin" class="qaction qa-admin">
+                        <span class="qaction-icon">🛡️</span>
+                        <span class="qaction-label">Admin Panel</span>
+                    </a>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Quick Actions -->
-<div class="row">
-    <div class="col-12 mb-4">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h5 class="card-title fw-bold mb-3">Quick Actions</h5>
-                <div class="row g-2">
-                    <div class="col-sm-6 col-lg-3">
-                        <a href="/register" class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2">
-                            <i class="bi bi-person-plus"></i>
-                            Face Register
-                        </a>
-                    </div>
-                    <div class="col-sm-6 col-lg-3">
-                        <a href="/camera" class="btn btn-success w-100 d-flex align-items-center justify-content-center gap-2">
-                            <i class="bi bi-camera-video"></i>
-                            Mark Attendance
-                        </a>
-                    </div>
-                    <div class="col-sm-6 col-lg-3">
-                        <a href="/report" class="btn btn-info w-100 d-flex align-items-center justify-content-center gap-2">
-                            <i class="bi bi-bar-chart"></i>
-                            View Reports
-                        </a>
-                    </div>
-                    <div class="col-sm-6 col-lg-3">
-                        <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2" id="refreshBtn">
-                            <i class="bi bi-arrow-clockwise"></i>
-                            Refresh Stats
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
 <script>
-    const IS_ADMIN = {{ 'true' if current_user.role == 'admin' else 'false' }};
+// ═══════════════════════════════════════════════════
+//  CONSTANTS & HELPERS
+// ═══════════════════════════════════════════════════
+const IST_OFFSET = 5.5 * 60 * 60 * 1000; // IST = UTC+5:30
+const SHIFT_START_MIN = 6 * 60;           // 6:00 AM in minutes
+const SHIFT_END_MIN   = 17 * 60;          // 5:00 PM in minutes
+const SHIFT_OPEN_MIN  = 6 * 60;           // device opens
+const SHIFT_CLOSE_MIN = 17 * 60;          // device closes
+const GRACE_MIN       = 9 * 60 + 15;     // 9:15 AM
+const DAYS  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS= ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-    async function loadDashboardStats() {
-        try {
-            const res = await fetch('/api/attendance');
-            const result = await res.json();
+function nowIST() {
+    return new Date(Date.now() + IST_OFFSET);
+}
+function todayIST() {
+    const d = nowIST();
+    return d.toISOString().slice(0, 10);
+}
+function fmtTime12(hhmm) {
+    if (!hhmm || hhmm === '--') return '--';
+    const [h, m] = hhmm.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+function resolveStatus(raw, time_in) {
+    if (raw === 'absent' || !time_in) return 'absent';
+    if (time_in < '06:00:00' || time_in > '17:00:00') return 'absent';
+    if (raw === 'half_day' || raw === 'late') return raw;
+    if (time_in <= '09:15:00') return 'present';
+    if (time_in <= '13:00:00') return 'late';
+    return 'half_day';
+}
+function timeToMin(hhmm) {
+    const [h, m] = (hhmm || '00:00').split(':').map(Number);
+    return h * 60 + m;
+}
 
-            if (result.success) {
-                // Admin: also load total user count
-                if (IS_ADMIN) {
-                    const usersRes = await fetch('/api/users');
-                    const usersResult = await usersRes.json();
-                    if (usersResult.success) {
-                        document.getElementById('totalUsers').textContent =
-                            usersResult.data ? usersResult.data.length : 0;
-                    }
-                }
+// ═══════════════════════════════════════════════════
+//  LIVE CLOCK (ticks every second)
+// ═══════════════════════════════════════════════════
+function tickClock() {
+    const now = nowIST();
+    const h = String(now.getUTCHours()).padStart(2,'0');
+    const m = String(now.getUTCMinutes()).padStart(2,'0');
+    const s = String(now.getUTCSeconds()).padStart(2,'0');
+    document.getElementById('liveClock').textContent = `${h}:${m}:${s}`;
 
-                const today = new Date().toLocaleDateString('en-CA');
-                const todayCount = result.data.filter(r => r.date === today).length;
-                document.getElementById('todayAttendance').textContent = todayCount;
-                document.getElementById('attendanceDate').textContent =
-                    new Date(today).toLocaleDateString();
-                document.getElementById('totalAttendance').textContent = result.data.length;
-            }
-        } catch (error) {
-            console.error('Error loading dashboard stats:', error);
-        }
+    const day = DAYS[now.getUTCDay()];
+    const date = now.getUTCDate();
+    const month = MONTHS[now.getUTCMonth()];
+    const year = now.getUTCFullYear();
+    document.getElementById('liveDate').textContent = `${day}, ${date} ${month} ${year} — IST`;
+
+    // Office open/closed chip
+    const totalMin = now.getUTCHours() * 60 + now.getUTCMinutes();
+    const chip = document.getElementById('officeChip');
+    if (totalMin < SHIFT_OPEN_MIN) {
+        chip.className = 'chip chip-late'; chip.textContent = '● Office Opens 6:00 AM';
+    } else if (totalMin >= SHIFT_CLOSE_MIN) {
+        chip.className = 'chip chip-closed'; chip.textContent = '● Office Closed';
+    } else {
+        chip.className = 'chip chip-open'; chip.textContent = '● Office Open';
+    }
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+// ═══════════════════════════════════════════════════
+//  SHIFT TIMELINE (updates every second)
+// ═══════════════════════════════════════════════════
+let checkinMinutes = null; // set when data loads
+
+function tickShift() {
+    const now = nowIST();
+    const totalMin = now.getUTCHours() * 60 + now.getUTCMinutes();
+    const shiftDuration = SHIFT_END_MIN - SHIFT_START_MIN; // 660 min
+
+    // Current position as % across the full bar (6AM → 5PM)
+    const clampedNow = Math.min(Math.max(totalMin, SHIFT_START_MIN), SHIFT_END_MIN);
+    const nowPct = ((clampedNow - SHIFT_START_MIN) / shiftDuration) * 100;
+    document.getElementById('shiftFill').style.width = nowPct + '%';
+
+    // Check-in pin (yellow)
+    const pin = document.getElementById('checkinPin');
+    if (checkinMinutes !== null) {
+        const pinPct = ((Math.min(checkinMinutes, SHIFT_END_MIN) - SHIFT_START_MIN) / shiftDuration) * 100;
+        pin.style.left = pinPct + '%';
+        pin.classList.remove('d-none');
     }
 
-    document.addEventListener('DOMContentLoaded', loadDashboardStats);
-    document.getElementById('refreshBtn').addEventListener('click', loadDashboardStats);
+    // Shift status label
+    const statusEl = document.getElementById('shiftStatus');
+    if (totalMin < SHIFT_OPEN_MIN) {
+        statusEl.textContent = 'Office not open yet'; statusEl.style.color = '#94a3b8';
+    } else if (totalMin >= SHIFT_CLOSE_MIN) {
+        statusEl.textContent = 'Shift ended'; statusEl.style.color = '#ef4444';
+    } else {
+        const rem = SHIFT_END_MIN - totalMin;
+        statusEl.textContent = `${Math.floor(rem/60)}h ${rem%60}m until shift ends`;
+        statusEl.style.color = '#16a34a';
+    }
+}
+setInterval(tickShift, 1000);
+tickShift();
+
+// ═══════════════════════════════════════════════════
+//  LIVE WORKING HOURS COUNTER (ticks every second)
+// ═══════════════════════════════════════════════════
+let checkinTimestamp = null; // UTC ms
+
+function tickCounter() {
+    const counter = document.getElementById('liveCounter');
+    const sub     = document.getElementById('liveCounterSub');
+    if (!checkinTimestamp) return;
+    const elapsed = Math.floor((Date.now() - checkinTimestamp) / 1000);
+    if (elapsed < 0) return;
+    const h = Math.floor(elapsed / 3600);
+    const m = Math.floor((elapsed % 3600) / 60);
+    const s = elapsed % 60;
+    counter.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    sub.textContent = 'Hours worked today (live)';
+}
+setInterval(tickCounter, 1000);
+
+// ═══════════════════════════════════════════════════
+//  WEEK STRIP
+// ═══════════════════════════════════════════════════
+function renderWeekStrip(records) {
+    const today = todayIST();
+    const todayDate = new Date(today + 'T00:00:00Z');
+    const dayOfWeek = todayDate.getUTCDay(); // 0=Sun
+    // Monday of this week
+    const monday = new Date(todayDate);
+    monday.setUTCDate(todayDate.getUTCDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+
+    const statusMap = {};
+    records.forEach(r => { statusMap[r.date] = r.status; });
+
+    const strip = document.getElementById('weekStrip');
+    const rangeLabel = document.getElementById('weekRangeLabel');
+    let html = '';
+
+    const days = ['Mon','Tue','Wed','Thu','Fri'];
+    const dates = [];
+    for (let i = 0; i < 5; i++) {
+        const d = new Date(monday);
+        d.setUTCDate(monday.getUTCDate() + i);
+        dates.push(d.toISOString().slice(0,10));
+    }
+
+    rangeLabel.textContent = `${dates[0].slice(5).replace('-','/')} – ${dates[4].slice(5).replace('-','/')}`;
+
+    dates.forEach((ds, i) => {
+        const isToday = ds === today;
+        const isFuture = ds > today;
+        const status = statusMap[ds];
+        const day = dates[i];
+        const dayNum = parseInt(ds.slice(8));
+
+        let dotClass, icon;
+        if (isFuture) {
+            dotClass = 'wdot-future'; icon = dayNum;
+        } else if (!status) {
+            dotClass = 'wdot-absent'; icon = '✗';
+        } else if (status === 'present') {
+            dotClass = 'wdot-present'; icon = '✓';
+        } else if (status === 'late') {
+            dotClass = 'wdot-late'; icon = '⏰';
+        } else if (status === 'half_day') {
+            dotClass = 'wdot-half_day'; icon = '◑';
+        } else if (status === 'absent') {
+            dotClass = 'wdot-absent'; icon = '✗';
+        } else {
+            dotClass = 'wdot-future'; icon = dayNum;
+        }
+
+        const todayRing = isToday ? ' wdot-today' : '';
+        html += `
+            <div class="week-day-col" title="${ds}: ${isFuture ? 'Future' : (status || 'No record')}">
+                <div class="week-day-name">${days[i]}</div>
+                <div class="week-dot ${dotClass}${todayRing}">${icon}</div>
+                <div class="week-date">${dayNum}</div>
+            </div>`;
+    });
+
+    strip.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════
+//  STREAK CALCULATION
+// ═══════════════════════════════════════════════════
+function calcStreak(records) {
+    const today = todayIST();
+    const statusMap = {};
+    records.forEach(r => { statusMap[r.date] = r.status; });
+
+    let streak = 0;
+    let check = new Date(today + 'T00:00:00Z');
+    for (let i = 0; i < 60; i++) {
+        const ds = check.toISOString().slice(0,10);
+        const dow = check.getUTCDay();
+        if (dow === 0 || dow === 6) { check.setUTCDate(check.getUTCDate() - 1); continue; }
+        const st = statusMap[ds];
+        if (st && st !== 'absent') { streak++; check.setUTCDate(check.getUTCDate() - 1); }
+        else break;
+    }
+    return streak;
+}
+
+// ═══════════════════════════════════════════════════
+//  TODAY BANNER
+// ═══════════════════════════════════════════════════
+const BANNER_CFG = {
+    present:  { cls:'banner-present',  icon:'✅', title: t => `Present — Checked in at ${t}`, sub: 'On time. Full day shift logged.' },
+    late:     { cls:'banner-late',     icon:'⏰', title: t => `Late — Checked in at ${t}`, sub: 'Late entry recorded. Try to arrive before 9:15 AM.' },
+    half_day: { cls:'banner-half_day', icon:'◑',  title: t => `Half Day — Checked in at ${t}`, sub: 'Partial shift. Arrived after 1:00 PM.' },
+    absent:   { cls:'banner-absent',   icon:'❌', title: () => 'Absent Today', sub: 'No check-in recorded. Contact admin if this is an error.' },
+    idle:     { cls:'banner-idle',     icon:'⏳', title: () => 'Not Marked Yet', sub: 'Office is open. Go to camera to mark your attendance.' },
+    closed:   { cls:'banner-idle',     icon:'🌙', title: () => 'Office Closed', sub: 'Shift has ended for today. See you tomorrow!' },
+};
+
+function renderBanner(status, timeIn) {
+    const totalMin = nowIST().getUTCHours() * 60 + nowIST().getUTCMinutes();
+    let key = status;
+    if (!status && totalMin >= SHIFT_CLOSE_MIN) key = 'closed';
+    else if (!status) key = 'idle';
+
+    const cfg = BANNER_CFG[key] || BANNER_CFG['idle'];
+    const t12 = fmtTime12(timeIn);
+    const banner = document.getElementById('todayBanner');
+    banner.className = `today-banner ${cfg.cls} mb-4`;
+    document.getElementById('bannerIcon').textContent  = cfg.icon;
+    document.getElementById('bannerTitle').textContent = cfg.title(t12);
+    document.getElementById('bannerSub').textContent   = cfg.sub;
+}
+
+// ═══════════════════════════════════════════════════
+//  MAIN DATA LOADER (auto-refresh every 60s)
+// ═══════════════════════════════════════════════════
+let lastSyncTime = null;
+
+function syncTickerTick() {
+    if (!lastSyncTime) return;
+    const sec = Math.floor((Date.now() - lastSyncTime) / 1000);
+    document.getElementById('syncTicker').textContent =
+        sec < 5 ? 'Just synced' : `Synced ${sec}s ago`;
+}
+setInterval(syncTickerTick, 1000);
+
+async function loadDashboard() {
+    try {
+        const res = await fetch('/api/attendance');
+        const result = await res.json();
+        if (!result.success) return;
+
+        lastSyncTime = Date.now();
+        document.getElementById('syncTicker').textContent = 'Just synced';
+
+        const records = (result.data || []).map(r => ({
+            ...r, status: resolveStatus(r.status, r.time_in || r.time)
+        }));
+
+        const today = todayIST();
+        const todayRec = records.find(r => r.date === today);
+        const status   = todayRec ? todayRec.status : null;
+        const timeIn   = todayRec ? (todayRec.time_in || todayRec.time) : null;
+
+        // ── Today Banner
+        renderBanner(status, timeIn);
+
+        // ── Live counter
+        if (timeIn && status !== 'absent') {
+            const [h, m, s] = timeIn.split(':').map(Number);
+            const todayUTC = new Date(today + 'T00:00:00Z');
+            checkinTimestamp = todayUTC.getTime() - IST_OFFSET + (h * 3600 + m * 60 + s) * 1000;
+            checkinMinutes = h * 60 + m;
+            document.getElementById('checkinDisplay').textContent = fmtTime12(timeIn);
+            document.getElementById('liveCounterDot').style.background = '#22c55e';
+            tickCounter();
+        } else {
+            document.getElementById('liveCounter').textContent = '00:00:00';
+            document.getElementById('liveCounterSub').textContent = status === 'absent' ? 'Marked absent today' : 'Not checked in yet';
+            document.getElementById('checkinDisplay').textContent = '--';
+            document.getElementById('liveCounterDot').style.background = '#94a3b8';
+        }
+
+        // ── Week Strip
+        renderWeekStrip(records);
+
+        // ── Streak
+        const streak = calcStreak(records);
+        document.getElementById('streakCount').textContent = streak;
+        document.getElementById('streakLabel').textContent =
+            streak === 0 ? 'No streak yet — check in today!' :
+            streak === 1 ? 'consecutive day — keep going!' :
+            'consecutive working days 🎯';
+
+    } catch (err) {
+        console.error('Dashboard load error:', err);
+        document.getElementById('syncTicker').textContent = 'Sync failed';
+    }
+}
+
+// Load immediately, then auto-refresh every 60 seconds
+loadDashboard();
+setInterval(loadDashboard, 60000);
 </script>
 {% endblock %}
-
