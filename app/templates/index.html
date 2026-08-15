@@ -8,10 +8,9 @@
 
 .dash-root { font-family: 'Inter', sans-serif; }
 
-/* ── Live Clock ── */
-.clock-block { line-height: 1; }
-.clock-time  { font-size: 2rem; font-weight: 800; letter-spacing: -1px; color: #0f172a; }
-.clock-date  { font-size: .82rem; color: #64748b; font-weight: 500; margin-top: 2px; }
+/* ── Header ── */
+.dash-greeting { font-size: 1.25rem; font-weight: 700; color: #0f172a; }
+.dash-greeting-sub { font-size: .82rem; color: #64748b; font-weight: 500; margin-top: 2px; }
 
 /* ── Today Banner ── */
 .today-banner {
@@ -158,9 +157,9 @@
 
     <!-- ── ROW 0: Header ─────────────────────────────────────── -->
     <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
-        <div class="clock-block">
-            <div class="clock-time" id="liveClock">--:--:--</div>
-            <div class="clock-date" id="liveDate">Loading...</div>
+        <div>
+            <div class="dash-greeting">Welcome back, {{ current_user.username }}</div>
+            <div class="dash-greeting-sub" id="headerDate">Loading...</div>
         </div>
         <div class="d-flex flex-column align-items-end gap-1">
             <div class="sync-bar">
@@ -330,20 +329,17 @@ function timeToMin(hhmm) {
 }
 
 // ═══════════════════════════════════════════════════
-//  LIVE CLOCK (ticks every second)
+//  HEADER DATE + OFFICE CHIP (ticks every second)
 // ═══════════════════════════════════════════════════
 function tickClock() {
     const now = nowIST();
-    const h = String(now.getUTCHours()).padStart(2,'0');
-    const m = String(now.getUTCMinutes()).padStart(2,'0');
-    const s = String(now.getUTCSeconds()).padStart(2,'0');
-    document.getElementById('liveClock').textContent = `${h}:${m}:${s}`;
-
     const day = DAYS[now.getUTCDay()];
     const date = now.getUTCDate();
     const month = MONTHS[now.getUTCMonth()];
     const year = now.getUTCFullYear();
-    document.getElementById('liveDate').textContent = `${day}, ${date} ${month} ${year} — IST`;
+    const h = String(now.getUTCHours()).padStart(2,'0');
+    const m = String(now.getUTCMinutes()).padStart(2,'0');
+    document.getElementById('headerDate').textContent = `${day}, ${date} ${month} ${year} · ${h}:${m} IST`;
 
     // Office open/closed chip
     const totalMin = now.getUTCHours() * 60 + now.getUTCMinutes();
@@ -398,21 +394,33 @@ setInterval(tickShift, 1000);
 tickShift();
 
 // ═══════════════════════════════════════════════════
-//  LIVE WORKING HOURS COUNTER (ticks every second)
+//  LIVE WORKING HOURS COUNTER (caps at 5:00 PM)
 // ═══════════════════════════════════════════════════
 let checkinTimestamp = null; // UTC ms
+let shiftEndTimestamp = null; // UTC ms for 5:00 PM IST
 
 function tickCounter() {
     const counter = document.getElementById('liveCounter');
     const sub     = document.getElementById('liveCounterSub');
     if (!checkinTimestamp) return;
-    const elapsed = Math.floor((Date.now() - checkinTimestamp) / 1000);
-    if (elapsed < 0) return;
+
+    // Cap at 5:00 PM — never count past shift end
+    const nowMs = Date.now();
+    const endMs = shiftEndTimestamp || nowMs;
+    const cappedNow = Math.min(nowMs, endMs);
+    const elapsed = Math.max(0, Math.floor((cappedNow - checkinTimestamp) / 1000));
+
     const h = Math.floor(elapsed / 3600);
     const m = Math.floor((elapsed % 3600) / 60);
     const s = elapsed % 60;
     counter.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    sub.textContent = 'Hours worked today (live)';
+
+    if (nowMs >= endMs) {
+        sub.textContent = 'Shift ended — final hours';
+        document.getElementById('liveCounterDot').style.background = '#94a3b8';
+    } else {
+        sub.textContent = 'Hours worked today (live)';
+    }
 }
 setInterval(tickCounter, 1000);
 
@@ -562,16 +570,20 @@ async function loadDashboard() {
         // ── Today Banner
         renderBanner(status, timeIn);
 
-        // ── Live counter
+        // ── Live counter (caps at 5:00 PM)
         if (timeIn && status !== 'absent') {
             const [h, m, s] = timeIn.split(':').map(Number);
             const todayUTC = new Date(today + 'T00:00:00Z');
-            checkinTimestamp = todayUTC.getTime() - IST_OFFSET + (h * 3600 + m * 60 + s) * 1000;
+            checkinTimestamp = todayUTC.getTime() - IST_OFFSET + (h * 3600 + m * 60 + (s||0)) * 1000;
+            // 5:00 PM IST = shift end cap
+            shiftEndTimestamp = todayUTC.getTime() - IST_OFFSET + (17 * 3600) * 1000;
             checkinMinutes = h * 60 + m;
             document.getElementById('checkinDisplay').textContent = fmtTime12(timeIn);
             document.getElementById('liveCounterDot').style.background = '#22c55e';
             tickCounter();
         } else {
+            checkinTimestamp = null;
+            shiftEndTimestamp = null;
             document.getElementById('liveCounter').textContent = '00:00:00';
             document.getElementById('liveCounterSub').textContent = status === 'absent' ? 'Marked absent today' : 'Not checked in yet';
             document.getElementById('checkinDisplay').textContent = '--';
