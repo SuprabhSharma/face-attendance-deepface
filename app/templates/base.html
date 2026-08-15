@@ -72,19 +72,25 @@
 }
 </style>
 <div id="pwaInstallBanner" class="d-none">
-    <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
-        <div class="card-body p-3 d-flex align-items-center gap-2" style="background:linear-gradient(135deg,#1e40af 0%,#2563eb 100%);">
-            <img src="{{ url_for('static', filename='img/logo.png') }}" style="width:38px;height:38px;border-radius:10px;flex-shrink:0;" alt="FaceAttend">
-            <div class="flex-grow-1 min-width-0">
-                <div class="text-white fw-bold" style="font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Install FaceAttend App</div>
-                <div class="text-white text-opacity-75" style="font-size:0.72rem;">Add to Home Screen for instant access</div>
+    <div class="card border-0 shadow-lg rounded-4 overflow-hidden position-relative" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); border: 1px solid rgba(255,255,255,0.2) !important;">
+        <!-- Clear Close Button in Top Corner -->
+        <button type="button" id="pwaDismissBtn" class="btn-close btn-close-white position-absolute top-0 end-0 m-2" style="font-size: 0.75rem; z-index: 10;" aria-label="Close" title="Don't show again"></button>
+
+        <div class="card-body p-3">
+            <div class="d-flex align-items-center gap-3 mb-2">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" style="width:42px;height:42px;border-radius:10px;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.2);" alt="FaceAttend">
+                <div class="flex-grow-1 min-width-0 pe-3">
+                    <div class="text-white fw-bold" style="font-size:0.9rem;line-height:1.2;">Install FaceAttend</div>
+                    <div class="text-white text-opacity-75" style="font-size:0.75rem;">Fast 1-tap camera access</div>
+                </div>
             </div>
-            <div class="d-flex align-items-center gap-1.5 flex-shrink-0">
-                <button id="pwaInstallBtn" class="btn btn-sm btn-light fw-semibold rounded-pill px-3 shadow-sm" style="font-size:0.8rem;">
-                    <i class="bi bi-download me-1"></i>Install
+            
+            <div class="d-flex align-items-center justify-content-end gap-2 pt-1">
+                <button type="button" id="pwaNotNowBtn" class="btn btn-sm btn-link text-white text-opacity-75 text-decoration-none py-1 px-2" style="font-size:0.8rem;">
+                    Not Now
                 </button>
-                <button id="pwaDismissBtn" class="btn btn-sm text-white rounded-circle d-flex align-items-center justify-content-center p-0 ms-1" title="Close" aria-label="Close" style="width:28px;height:28px;background:rgba(255,255,255,0.25);border:none;transition:background 0.2s ease;">
-                    <i class="bi bi-x-lg" style="font-size:0.75rem;"></i>
+                <button type="button" id="pwaInstallBtn" class="btn btn-sm btn-light text-primary fw-bold rounded-pill px-3 py-1 shadow-sm" style="font-size:0.82rem;">
+                    <i class="bi bi-download me-1"></i>Install App
                 </button>
             </div>
         </div>
@@ -183,17 +189,38 @@
         });
     }
 
-    // 2. Capture install prompt
+    // 2. Capture install prompt & enforce dismissal persistence
     let _pwaInstallPrompt = null;
     const installBanner = document.getElementById('pwaInstallBanner');
     const installBtn    = document.getElementById('pwaInstallBtn');
     const dismissBtn    = document.getElementById('pwaDismissBtn');
+    const notNowBtn     = document.getElementById('pwaNotNowBtn');
+
+    function isPwaDismissed() {
+        if (sessionStorage.getItem('pwa-dismissed')) return true;
+        const dismissedTime = localStorage.getItem('pwa-dismissed-time');
+        if (dismissedTime) {
+            // Dismissed within last 7 days -> don't show on refresh
+            const daysPassed = (Date.now() - parseInt(dismissedTime, 10)) / (1000 * 60 * 60 * 24);
+            if (daysPassed < 7) return true;
+        }
+        return false;
+    }
+
+    function dismissPwaBanner() {
+        if (installBanner) {
+            installBanner.classList.add('d-none');
+        }
+        sessionStorage.setItem('pwa-dismissed', '1');
+        localStorage.setItem('pwa-dismissed-time', Date.now().toString());
+        _pwaInstallPrompt = null;
+    }
 
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         _pwaInstallPrompt = e;
-        // Show banner only if user hasn't dismissed it this session
-        if (!sessionStorage.getItem('pwa-dismissed')) {
+        // Never show if user already dismissed or closed it
+        if (!isPwaDismissed()) {
             installBanner?.classList.remove('d-none');
         }
     });
@@ -201,21 +228,25 @@
     // 3. Install button click — trigger native prompt
     installBtn?.addEventListener('click', async () => {
         if (!_pwaInstallPrompt) return;
-        installBanner.classList.add('d-none');
+        installBanner?.classList.add('d-none');
         const { outcome } = await _pwaInstallPrompt.prompt();
         console.log('[PWA] Install outcome:', outcome);
+        if (outcome === 'accepted') {
+            localStorage.setItem('pwa-installed', '1');
+        } else {
+            dismissPwaBanner();
+        }
         _pwaInstallPrompt = null;
     });
 
-    // 4. Dismiss button — hide for this session
-    dismissBtn?.addEventListener('click', () => {
-        installBanner?.classList.add('d-none');
-        sessionStorage.setItem('pwa-dismissed', '1');
-    });
+    // 4. Close ('X') & 'Not Now' buttons — guaranteed dismissal
+    dismissBtn?.addEventListener('click', dismissPwaBanner);
+    notNowBtn?.addEventListener('click', dismissPwaBanner);
 
     // 5. Hide banner once user successfully installs
     window.addEventListener('appinstalled', () => {
         installBanner?.classList.add('d-none');
+        localStorage.setItem('pwa-installed', '1');
         _pwaInstallPrompt = null;
         console.log('[PWA] FaceAttend installed successfully!');
     });
