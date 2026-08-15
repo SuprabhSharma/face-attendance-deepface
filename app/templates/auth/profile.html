@@ -273,13 +273,13 @@ async function loadProfileData() {
         const halfDay  = monthRecs.filter(r => r.status === 'half_day').length;
         const absent   = monthRecs.filter(r => r.status === 'absent').length;
 
-        // Working days so far this month (Mon-Fri)
+        // Working days so far this month (Mon-Sat, Sunday off)
         const now = new Date();
         const [y, m] = monthStr.split('-').map(Number);
         let workingDays = 0;
         for (let d = 1; d <= now.getDate(); d++) {
             const dow = new Date(y, m - 1, d).getDay();
-            if (dow !== 0 && dow !== 6) workingDays++;
+            if (dow !== 0) workingDays++; // 0 = Sunday
         }
 
         const effectiveAttended = present + late + (halfDay * 0.5);

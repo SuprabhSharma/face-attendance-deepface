@@ -386,19 +386,19 @@
     const halfDay = monthRecs.filter(r => (r.status || '') === 'half_day').length;
     const absent  = monthRecs.filter(r => (r.status || '') === 'absent').length;
 
-    // Working days this month so far (Mon–Fri up to today)
+    // Working days this month so far (Mon–Sat up to today, Sunday off)
     const now = new Date();
     const [y, m] = month.split('-').map(Number);
     let workingDays = 0;
     for (let d = 1; d <= now.getDate(); d++) {
       const dow = new Date(y, m-1, d).getDay();
-      if (dow !== 0 && dow !== 6) workingDays++;
+      if (dow !== 0) workingDays++; // 0 = Sunday (off), 1-6 = Mon-Sat
     }
 
     const effectiveAttended = present + late + (halfDay * 0.5);
     const rate = workingDays > 0 ? Math.min(100, Math.round((effectiveAttended / workingDays) * 100)) : 0;
 
-    // Current streak — count consecutive attended days going back from today
+    // Current streak — count consecutive attended days going back from today (skips Sunday)
     const sorted = [...allRecords]
       .filter(r => (r.status || 'present') !== 'absent')
       .sort((a,b) => b.date.localeCompare(a.date));
@@ -407,7 +407,7 @@
     for (let i = 0; i < 60; i++) {
       const ds = check.toLocaleDateString('en-CA');
       const dow = check.getDay();
-      if (dow === 0 || dow === 6) { check.setDate(check.getDate()-1); continue; }
+      if (dow === 0) { check.setDate(check.getDate()-1); continue; } // Skip Sunday only
       if (sorted.find(r => r.date === ds)) { streak++; check.setDate(check.getDate()-1); }
       else break;
     }

@@ -202,6 +202,15 @@ def recognize():
                     'status': 'already_absent',
                     'message': f"You have already been marked ABSENT for today. Contact your administrator to override."
                 })
+            elif status == 'office_closed_sunday':
+                return jsonify({
+                    'success': True,
+                    'found': True,
+                    'user_id': user_id,
+                    'user_name': display_name,
+                    'status': 'office_closed_sunday',
+                    'message': 'Office is closed on Sundays. Attendance is active Monday to Saturday (9:00 AM - 5:00 PM IST).'
+                })
             elif status in ('office_closed', 'office_closed_early'):
                 return jsonify({
                     'success': True,

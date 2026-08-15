@@ -114,21 +114,21 @@ def start_scheduler():
     try:
         # ✅ Prevent duplicate jobs
         if scheduler.get_job('mark_absentees'):
-            logger.info("⚠ Scheduler already initialized. Skipping...")
+            logger.info("[INFO] Scheduler already initialized. Skipping...")
             return True
 
-        # Mark absentees at 5:00 PM IST sharp (shift end)
+        # Mark absentees at 5:00 PM IST sharp (Mon-Sat 6-day work week)
         scheduler.add_job(
             AttendanceScheduler.mark_end_of_day_absentees,
-            CronTrigger(hour=17, minute=0, day_of_week='0-4'),
+            CronTrigger(hour=17, minute=0, day_of_week='0-5'),
             id='mark_absentees',
             replace_existing=True
         )
 
-        # Send daily summaries at 5:15 PM IST (after absentees are marked)
+        # Send daily summaries at 5:15 PM IST (Mon-Sat 6-day work week)
         scheduler.add_job(
             AttendanceScheduler.send_daily_summaries,
-            CronTrigger(hour=17, minute=15, day_of_week='0-4'),
+            CronTrigger(hour=17, minute=15, day_of_week='0-5'),
             id='send_summaries',
             replace_existing=True
         )

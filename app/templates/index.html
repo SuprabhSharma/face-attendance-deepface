@@ -341,10 +341,13 @@ function tickClock() {
     const m = String(now.getUTCMinutes()).padStart(2,'0');
     document.getElementById('headerDate').textContent = `${day}, ${date} ${month} ${year} · ${h}:${m} IST`;
 
-    // Office open/closed chip
+    // Office open/closed chip (Mon-Sat 6-day work week)
     const totalMin = now.getUTCHours() * 60 + now.getUTCMinutes();
+    const dow = now.getUTCDay();
     const chip = document.getElementById('officeChip');
-    if (totalMin < SHIFT_OPEN_MIN) {
+    if (dow === 0) {
+        chip.className = 'chip chip-closed'; chip.textContent = '● Office Closed (Sunday)';
+    } else if (totalMin < SHIFT_OPEN_MIN) {
         chip.className = 'chip chip-late'; chip.textContent = '● Office Opens 6:00 AM';
     } else if (totalMin >= SHIFT_CLOSE_MIN) {
         chip.className = 'chip chip-closed'; chip.textContent = '● Office Closed';
@@ -380,7 +383,9 @@ function tickShift() {
 
     // Shift status label
     const statusEl = document.getElementById('shiftStatus');
-    if (totalMin < SHIFT_OPEN_MIN) {
+    if (now.getUTCDay() === 0) {
+        statusEl.textContent = 'Sunday — Weekly Off'; statusEl.style.color = '#94a3b8';
+    } else if (totalMin < SHIFT_OPEN_MIN) {
         statusEl.textContent = 'Office not open yet'; statusEl.style.color = '#94a3b8';
     } else if (totalMin >= SHIFT_CLOSE_MIN) {
         statusEl.textContent = 'Shift ended'; statusEl.style.color = '#ef4444';
@@ -425,7 +430,7 @@ function tickCounter() {
 setInterval(tickCounter, 1000);
 
 // ═══════════════════════════════════════════════════
-//  WEEK STRIP
+//  WEEK STRIP (6 Days: Mon - Sat)
 // ═══════════════════════════════════════════════════
 function renderWeekStrip(records) {
     const today = todayIST();
@@ -442,15 +447,15 @@ function renderWeekStrip(records) {
     const rangeLabel = document.getElementById('weekRangeLabel');
     let html = '';
 
-    const days = ['Mon','Tue','Wed','Thu','Fri'];
+    const days = ['Mon','Tue','Wed','Thu','Fri','Sat'];
     const dates = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
         const d = new Date(monday);
         d.setUTCDate(monday.getUTCDate() + i);
         dates.push(d.toISOString().slice(0,10));
     }
 
-    rangeLabel.textContent = `${dates[0].slice(5).replace('-','/')} – ${dates[4].slice(5).replace('-','/')}`;
+    rangeLabel.textContent = `${dates[0].slice(5).replace('-','/')} – ${dates[5].slice(5).replace('-','/')} (Mon–Sat)`;
 
     dates.forEach((ds, i) => {
         const isToday = ds === today;
@@ -489,7 +494,7 @@ function renderWeekStrip(records) {
 }
 
 // ═══════════════════════════════════════════════════
-//  STREAK CALCULATION
+//  STREAK CALCULATION (Mon - Sat, Skips Sunday Only)
 // ═══════════════════════════════════════════════════
 function calcStreak(records) {
     const today = todayIST();
@@ -501,7 +506,7 @@ function calcStreak(records) {
     for (let i = 0; i < 60; i++) {
         const ds = check.toISOString().slice(0,10);
         const dow = check.getUTCDay();
-        if (dow === 0 || dow === 6) { check.setUTCDate(check.getUTCDate() - 1); continue; }
+        if (dow === 0) { check.setUTCDate(check.getUTCDate() - 1); continue; } // Skip Sunday ONLY
         const st = statusMap[ds];
         if (st && st !== 'absent') { streak++; check.setUTCDate(check.getUTCDate() - 1); }
         else break;

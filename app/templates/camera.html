@@ -305,6 +305,10 @@ function sendEmail(name, email, date, time) {
                     loadTodayAttendance();
                 }, 2000);
 
+            } else if (data.status === 'office_closed_sunday') {
+
+                notifyError(data.message || "Office is closed on Sundays. Working days are Monday to Saturday (9:00 AM - 5:00 PM).");
+
             } else if (data.status === 'already_absent') {
 
                 notifyError(data.message || "You have already been marked ABSENT for today. Contact your administrator.");

@@ -589,6 +589,12 @@ def mark_attendance(user_id, attendance_date=None, attendance_time=None, status=
         HALFDAY_CUTOFF = '13:00:00'  # 1:00 PM
         WINDOW_OPEN   = '06:00:00'   # 6:00 AM earliest
 
+        # REJECT: Sunday is weekly off (Mon-Sat 6-day work week)
+        dt_obj = datetime.strptime(attendance_date, '%Y-%m-%d')
+        if dt_obj.weekday() == 6:  # 6 = Sunday
+            conn.close()
+            return False, 'office_closed_sunday'
+
         # REJECT: before office opens
         if attendance_time < WINDOW_OPEN:
             conn.close()
@@ -694,7 +700,13 @@ def get_attendance_today():
 
 
 def check_and_mark_absent(user_id, date):
-    """Mark user as absent if not marked by end of day"""
+    """Mark user as absent if not marked by end of day (Mon-Sat only, Sunday is off)"""
+    try:
+        if datetime.strptime(date, '%Y-%m-%d').weekday() == 6:
+            return False  # Sunday is off day, never mark absent
+    except Exception:
+        pass
+
     conn = get_db_connection()
     c = conn.cursor()
     c.execute('SELECT id FROM attendance WHERE user_id = ? AND date = ?', (user_id, date))
