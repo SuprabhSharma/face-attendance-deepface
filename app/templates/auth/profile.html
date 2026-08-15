@@ -1,103 +1,163 @@
 {% extends "base.html" %}
 
-{% block title %}My Profile - FaceAttend System{% endblock %}
+{% block title %}My Profile — FaceAttend{% endblock %}
 
 {% block content %}
+<style>
+.prof-avatar {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2rem; color: #fff; font-weight: 700;
+    flex-shrink: 0;
+}
+.stat-pill {
+    padding: 18px 12px;
+    border-radius: 14px;
+    text-align: center;
+    min-width: 80px;
+}
+.stat-pill h3 { font-size: 1.8rem; font-weight: 700; margin: 0; }
+.stat-pill small { font-size: 0.75rem; color: #64748b; }
+.info-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+.info-row:last-child { border-bottom: none; }
+.info-label { font-size: 0.78rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; min-width: 80px; }
+.info-value { font-size: 0.9rem; font-weight: 600; color: #1e293b; }
+.attendance-badge { font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 20px; display: inline-block; }
+.badge-present  { background: #dcfce7; color: #16a34a; }
+.badge-late     { background: #fef9c3; color: #ca8a04; }
+.badge-half_day { background: #dbeafe; color: #2563eb; }
+.badge-absent   { background: #fee2e2; color: #dc2626; }
+</style>
 
-<div class="container-fluid py-4">
+<div class="container-fluid py-3">
 
     <!-- HEADER -->
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <h2 class="fw-bold">
-            <i class="bi bi-person-circle me-2 text-primary"></i> My Profile
-        </h2>
-        <a href="{{ url_for('auth.change_password') }}" class="btn btn-primary shadow-sm">
+        <div>
+            <h4 class="fw-bold mb-0"><i class="bi bi-person-circle me-2 text-primary"></i>My Profile</h4>
+            <small class="text-muted">Your account and attendance overview</small>
+        </div>
+        <a href="{{ url_for('auth.change_password') }}" class="btn btn-primary btn-sm shadow-sm px-3">
             <i class="bi bi-key me-1"></i> Change Password
         </a>
     </div>
 
     <div class="row g-4">
 
-        <!-- USER INFO -->
-        <div class="col-lg-5">
-            <div class="card border-0 shadow-lg rounded-4 h-100">
+        <!-- ─── USER IDENTITY CARD ─── -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
                 <div class="card-body p-4">
-                    <h5 class="mb-3 text-primary fw-semibold">User Information</h5>
-
-                    <div class="mb-2"><strong>Name:</strong> {{ user.full_name }}</div>
-                    <div class="mb-2"><strong>Username:</strong> {{ user.username }}</div>
-                    <div class="mb-2"><strong>Email:</strong> {{ user.email }}</div>
-
-                </div>
-            </div>
-        </div>
-
-        <!-- ATTENDANCE SUMMARY -->
-        <div class="col-lg-7">
-            <div class="card border-0 shadow-lg rounded-4 h-100">
-                <div class="card-body p-4 text-center">
-
-                    <h5 class="mb-4 fw-semibold text-primary">Attendance Summary</h5>
-
-                    <div class="row text-center">
-
-                        <div class="col">
-                            <div class="p-3 rounded-3 bg-success-subtle">
-                                <h3 id="presentCount" class="fw-bold text-success">0</h3>
-                                <small>Present</small>
-                            </div>
+                    <!-- Avatar + name -->
+                    <div class="d-flex align-items-center gap-3 mb-4">
+                        <div class="prof-avatar" id="avatarInitial">?</div>
+                        <div>
+                            <h5 class="mb-0 fw-bold" id="displayFullName">—</h5>
+                            <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3 py-1 mt-1" style="font-size:.72rem;">
+                                {{ user.role | capitalize }}
+                            </span>
                         </div>
-
-                        <div class="col">
-                            <div class="p-3 rounded-3 bg-warning-subtle">
-                                <h3 id="lateCount" class="fw-bold text-warning">0</h3>
-                                <small>Late</small>
-                            </div>
-                        </div>
-
-                        <div class="col">
-                            <div class="p-3 rounded-3 bg-danger-subtle">
-                                <h3 id="absentCount" class="fw-bold text-danger">0</h3>
-                                <small>Absent</small>
-                            </div>
-                        </div>
-
                     </div>
 
-                    <hr>
-
-                    <p class="mb-0">
-                        Last Attendance:
-                        <strong id="lastAttendance" class="text-dark">Not available</strong>
-                    </p>
-
+                    <!-- Info rows -->
+                    <div class="info-row">
+                        <i class="bi bi-envelope-fill text-primary" style="font-size:1rem;"></i>
+                        <div>
+                            <div class="info-label">Email</div>
+                            <div class="info-value">{{ user.email }}</div>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <i class="bi bi-person-badge-fill text-indigo" style="font-size:1rem;color:#6366f1;"></i>
+                        <div>
+                            <div class="info-label">Account ID</div>
+                            <div class="info-value" style="font-family:monospace;font-size:.82rem;">#{{ user.id }}</div>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <i class="bi bi-calendar-check text-success" style="font-size:1rem;"></i>
+                        <div>
+                            <div class="info-label">Joined</div>
+                            <div class="info-value" id="joinedDate">—</div>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <i class="bi bi-clock-history text-warning" style="font-size:1rem;"></i>
+                        <div>
+                            <div class="info-label">Last Check-In</div>
+                            <div class="info-value" id="lastCheckin">—</div>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <i class="bi bi-shield-fill-check text-teal" style="font-size:1rem;color:#0d9488;"></i>
+                        <div>
+                            <div class="info-label">Today's Status</div>
+                            <div id="todayStatusBadge"><span class="attendance-badge badge-absent">Not Marked</span></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-    </div>
-
-    <!-- RECENT ATTENDANCE -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-lg rounded-4">
+        <!-- ─── ATTENDANCE STATS ─── -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
                 <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold mb-0 text-primary">This Month's Summary</h6>
+                        <small class="text-muted" id="monthLabel">—</small>
+                    </div>
 
-                    <h5 class="mb-3 fw-semibold text-primary">Recent Attendance</h5>
+                    <!-- Stat pills row -->
+                    <div class="d-flex flex-wrap gap-3 mb-4">
+                        <div class="stat-pill bg-success bg-opacity-10 flex-fill">
+                            <h3 class="text-success" id="presentCount">0</h3>
+                            <small>Present</small>
+                        </div>
+                        <div class="stat-pill bg-warning bg-opacity-10 flex-fill">
+                            <h3 class="text-warning" id="lateCount">0</h3>
+                            <small>Late</small>
+                        </div>
+                        <div class="stat-pill bg-info bg-opacity-10 flex-fill">
+                            <h3 class="text-info" id="halfDayCount">0</h3>
+                            <small>Half Day</small>
+                        </div>
+                        <div class="stat-pill bg-danger bg-opacity-10 flex-fill">
+                            <h3 class="text-danger" id="absentCount">0</h3>
+                            <small>Absent</small>
+                        </div>
+                    </div>
 
+                    <!-- Attendance rate bar -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-1">
+                            <small class="text-muted fw-semibold">Attendance Rate</small>
+                            <small class="fw-bold text-primary" id="rateLabel">0%</small>
+                        </div>
+                        <div class="progress" style="height:8px;border-radius:10px;">
+                            <div class="progress-bar bg-primary" id="rateBar" role="progressbar"
+                                 style="width:0%;border-radius:10px;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <small class="text-muted" id="workingDaysLabel" style="font-size:.72rem;"></small>
+                    </div>
+
+                    <!-- Recent records table -->
+                    <h6 class="fw-bold text-primary mb-2">Recent Attendance</h6>
                     <div class="table-responsive">
-                        <table class="table align-middle table-hover">
+                        <table class="table table-hover align-middle mb-0" style="font-size:.87rem;">
                             <thead class="table-light">
                                 <tr>
                                     <th>Date</th>
-                                    <th>Time</th>
+                                    <th>Day</th>
+                                    <th>Check-In</th>
                                     <th>Status</th>
+                                    <th>Working Hrs</th>
                                 </tr>
                             </thead>
                             <tbody id="attendanceTableBody">
-                                <tr>
-                                    <td colspan="3" class="text-center">Loading...</td>
-                                </tr>
+                                <tr><td colspan="5" class="text-center text-muted py-3">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -105,67 +165,162 @@
                 </div>
             </div>
         </div>
-    </div>
 
+    </div>
 </div>
 
-<style>
-.card {
-    transition: all 0.3s ease;
-}
-.card:hover {
-    transform: translateY(-5px);
-}
-.table-hover tbody tr:hover {
-    background-color: #f8f9fa;
-}
-</style>
-
 <script>
+// ── helpers ────────────────────────────────────────────
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function fmtDate(d) {
+    const [y,m,day] = d.split('-');
+    return `${parseInt(day)} ${MONTHS[parseInt(m)-1]} ${y}`;
+}
+function fmtTime(t) {
+    if (!t || t === '--') return '--';
+    const [h, m] = t.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hh = h % 12 || 12;
+    return `${hh}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+function dayName(d) {
+    return DAYS[new Date(d + 'T00:00:00').getDay()];
+}
+
+// ── resolveStatus: same logic as backend ────────────────
+function resolveStatus(raw_status, time_val) {
+    if (raw_status === 'absent' || !time_val) return 'absent';
+    if (time_val < '06:00:00' || time_val > '17:00:00') return 'absent';
+    if (raw_status === 'half_day' || raw_status === 'late') return raw_status;
+    if (time_val <= '09:15:00') return 'present';
+    if (time_val <= '13:00:00') return 'late';
+    if (time_val <= '17:00:00') return 'half_day';
+    return 'absent';
+}
+
+// ── badge HTML ──────────────────────────────────────────
+function badgeHTML(status) {
+    const map = {
+        present:  ['badge-present',  '✓ Present'],
+        late:     ['badge-late',     '⏰ Late'],
+        half_day: ['badge-half_day', '◑ Half Day'],
+        absent:   ['badge-absent',   '✗ Absent'],
+    };
+    const [cls, label] = map[status] || map['absent'];
+    return `<span class="attendance-badge ${cls}">${label}</span>`;
+}
+
+// ── workingHours for display ────────────────────────────
+function workingHrs(status, time_in) {
+    if (status === 'absent') return '<span style="color:#dc2626;">0h 00m</span>';
+    if (status === 'half_day') return '<span style="color:#2563eb;">4h 00m</span>';
+    if (status === 'present') return '<span style="color:#16a34a;">8h 00m</span>';
+    if (status === 'late' && time_in) {
+        const [h, m] = time_in.split(':').map(Number);
+        const diff = Math.max(0, 17 * 60 - (h * 60 + m));
+        if (diff > 0) return `<span style="color:#ca8a04;">${Math.floor(diff/60)}h ${String(diff%60).padStart(2,'0')}m</span>`;
+    }
+    return '<span style="color:#ca8a04;">7h 30m</span>';
+}
+
+// ── main loader ─────────────────────────────────────────
 async function loadProfileData() {
     try {
         const res = await fetch('/api/attendance');
         const result = await res.json();
-
         if (!result.success) return;
 
         const records = result.data || [];
+        const today = new Date().toLocaleDateString('en-CA');
+        const monthStr = today.substring(0, 7);
 
-        document.getElementById("presentCount").innerText = records.length;
-        document.getElementById("lateCount").innerText = 0;
-        document.getElementById("absentCount").innerText = 0;
+        // Resolve statuses client-side for all records
+        const resolved = records.map(r => ({
+            ...r,
+            status: resolveStatus(r.status, r.time_in || r.time)
+        }));
 
-        if (records.length > 0) {
-            const last = records[0];
-            document.getElementById("lastAttendance").innerText =
-                last.date + " " + (last.time || last.time_in || "");
+        // ── User identity ────────────────────────────────
+        const fullName = "{{ user.full_name or user.username }}";
+        document.getElementById('displayFullName').textContent = fullName;
+        document.getElementById('avatarInitial').textContent = fullName.charAt(0).toUpperCase();
+
+        // Joined: use first record date if no created_at exposed, else placeholder
+        document.getElementById('joinedDate').textContent = 'Active Employee';
+
+        // ── Today's status ────────────────────────────────
+        const todayRec = resolved.find(r => r.date === today);
+        const todayStatus = todayRec ? todayRec.status : 'absent';
+        document.getElementById('todayStatusBadge').innerHTML = todayRec
+            ? badgeHTML(todayStatus)
+            : '<span class="attendance-badge badge-absent">Not Marked Today</span>';
+
+        // ── Last check-in ────────────────────────────────
+        const lastRec = resolved.find(r => r.time_in);
+        if (lastRec) {
+            document.getElementById('lastCheckin').textContent =
+                fmtDate(lastRec.date) + ' · ' + fmtTime(lastRec.time_in);
+        } else {
+            document.getElementById('lastCheckin').textContent = 'No records yet';
         }
 
-        const tableBody = document.getElementById("attendanceTableBody");
+        // ── Month stats ───────────────────────────────────
+        const monthRecs = resolved.filter(r => r.date.startsWith(monthStr));
+        const present  = monthRecs.filter(r => r.status === 'present').length;
+        const late     = monthRecs.filter(r => r.status === 'late').length;
+        const halfDay  = monthRecs.filter(r => r.status === 'half_day').length;
+        const absent   = monthRecs.filter(r => r.status === 'absent').length;
 
-        if (records.length === 0) {
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="3" class="text-center">No records</td>
-                </tr>
-            `;
+        // Working days so far this month (Mon-Fri)
+        const now = new Date();
+        const [y, m] = monthStr.split('-').map(Number);
+        let workingDays = 0;
+        for (let d = 1; d <= now.getDate(); d++) {
+            const dow = new Date(y, m - 1, d).getDay();
+            if (dow !== 0 && dow !== 6) workingDays++;
+        }
+
+        const effectiveAttended = present + late + (halfDay * 0.5);
+        const rate = workingDays > 0 ? Math.min(100, Math.round((effectiveAttended / workingDays) * 100)) : 0;
+
+        document.getElementById('presentCount').textContent = present;
+        document.getElementById('lateCount').textContent = late;
+        document.getElementById('halfDayCount').textContent = halfDay;
+        document.getElementById('absentCount').textContent = absent;
+
+        const mLabel = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        document.getElementById('monthLabel').textContent = mLabel;
+        document.getElementById('rateLabel').textContent = rate + '%';
+        document.getElementById('rateBar').style.width = rate + '%';
+        document.getElementById('rateBar').setAttribute('aria-valuenow', rate);
+        document.getElementById('workingDaysLabel').textContent =
+            `${present + late + halfDay} days attended of ${workingDays} working days`;
+
+        // ── Recent table ──────────────────────────────────
+        const tableBody = document.getElementById('attendanceTableBody');
+        if (resolved.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">No attendance records yet</td></tr>`;
             return;
         }
 
-        tableBody.innerHTML = records.slice(0, 5).map(r => `
+        tableBody.innerHTML = resolved.slice(0, 10).map(r => `
             <tr>
-                <td>${r.date}</td>
-                <td>${r.time || r.time_in || '--'}</td>
-                <td><span class="badge bg-success">Present</span></td>
+                <td><strong>${fmtDate(r.date)}</strong></td>
+                <td><span class="text-muted">${dayName(r.date)}</span></td>
+                <td>${r.status === 'absent' && !r.time_in ? '<span class="text-muted">--</span>' : fmtTime(r.time_in || r.time)}</td>
+                <td>${badgeHTML(r.status)}</td>
+                <td>${workingHrs(r.status, r.time_in)}</td>
             </tr>
-        `).join("");
+        `).join('');
 
     } catch (err) {
-        console.error(err);
+        console.error('Profile load error:', err);
     }
 }
 
-document.addEventListener("DOMContentLoaded", loadProfileData);
+document.addEventListener('DOMContentLoaded', loadProfileData);
 </script>
 
 {% endblock %}
