@@ -371,6 +371,12 @@ def init_db():
         c.execute('CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs(timestamp)')
 
+    # ── Auto-sanitize existing historical after-hours scans to absent ──
+    try:
+        c.execute("UPDATE attendance SET status = 'absent' WHERE time_in IS NOT NULL AND (time_in < '06:00:00' OR time_in > '17:00:00')")
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()
     engine_name = "Render PostgreSQL" if IS_POSTGRES else "Local SQLite"
@@ -656,8 +662,25 @@ def mark_attendance(user_id, attendance_date=None, attendance_time=None, status=
     return True, status
 
 
+def resolve_attendance_status(raw_status, time_in):
+    """Canonical 9-to-5 status resolution for any stored record"""
+    if raw_status == 'absent' or not time_in:
+        return 'absent'
+    if time_in < '06:00:00' or time_in > '17:00:00':
+        return 'absent'
+    if raw_status in ('half_day', 'late'):
+        return raw_status
+    if time_in <= '09:15:00':
+        return 'present'
+    if time_in <= '13:00:00':
+        return 'late'
+    if time_in <= '17:00:00':
+        return 'half_day'
+    return 'absent'
+
+
 def get_attendance_by_user(user_id, limit=50):
-    """Get attendance records for a user"""
+    """Get attendance records for a user with canonical status."""
     conn = get_db_connection()
     c = conn.cursor()
     c.execute('''
@@ -670,11 +693,17 @@ def get_attendance_by_user(user_id, limit=50):
     ''', (user_id, limit))
     records = c.fetchall()
     conn.close()
-    return records
+    
+    cleaned = []
+    for r in records:
+        d = dict(r)
+        d['status'] = resolve_attendance_status(d.get('status'), d.get('time_in'))
+        cleaned.append(d)
+    return cleaned
 
 
 def get_attendance_records(start_date=None, end_date=None):
-    """Get all attendance records with optional date filter"""
+    """Get all attendance records with optional date filter and canonical status."""
     conn = get_db_connection()
     c = conn.cursor()
     
@@ -696,11 +725,17 @@ def get_attendance_records(start_date=None, end_date=None):
     
     records = c.fetchall()
     conn.close()
-    return records
+    
+    cleaned = []
+    for r in records:
+        d = dict(r)
+        d['status'] = resolve_attendance_status(d.get('status'), d.get('time_in'))
+        cleaned.append(d)
+    return cleaned
 
 
 def get_all_attendance_admin(limit=500):
-    """Get all attendance records for administrator views."""
+    """Get all attendance records for administrator views with canonical status."""
     conn = get_db_connection()
     c = conn.cursor()
     c.execute('''
@@ -712,11 +747,17 @@ def get_all_attendance_admin(limit=500):
     ''', (limit,))
     records = c.fetchall()
     conn.close()
-    return records
+    
+    cleaned = []
+    for r in records:
+        d = dict(r)
+        d['status'] = resolve_attendance_status(d.get('status'), d.get('time_in'))
+        cleaned.append(d)
+    return cleaned
 
 
 def get_attendance_today():
-    """Get today's attendance records"""
+    """Get today's attendance records with canonical status."""
     today = datetime.now(IST).strftime('%Y-%m-%d')
     conn = get_db_connection()
     c = conn.cursor()
@@ -729,7 +770,13 @@ def get_attendance_today():
     ''', (today,))
     records = c.fetchall()
     conn.close()
-    return records
+    
+    cleaned = []
+    for r in records:
+        d = dict(r)
+        d['status'] = resolve_attendance_status(d.get('status'), d.get('time_in'))
+        cleaned.append(d)
+    return cleaned
 
 
 def check_and_mark_absent(user_id, date):

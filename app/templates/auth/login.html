@@ -291,9 +291,11 @@
             </form>
 
             <!-- Footer -->
+            {% if not is_admin_login %}
             <div class="login-footer">
                 <p>Don't have an account? <a href="{{ url_for('auth.register') }}">Create account</a></p>
             </div>
+            {% endif %}
 
             <!-- Footer Text -->
             <div class="text-center mt-4" style="color: #9ca3af; font-size: 0.85rem;">

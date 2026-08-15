@@ -63,17 +63,19 @@
 
                             <td class="px-3 py-3">
                                 <span class="badge 
-                                    {% if record.status == 'Present' %}
+                                    {% if record.status | lower == 'present' %}
                                         bg-success
-                                    {% elif record.status == 'Late' %}
+                                    {% elif record.status | lower == 'late' %}
                                         bg-warning text-dark
-                                    {% elif record.status == 'Absent' %}
+                                    {% elif record.status | lower == 'half_day' %}
+                                        bg-primary
+                                    {% elif record.status | lower == 'absent' %}
                                         bg-danger
                                     {% else %}
                                         bg-secondary
                                     {% endif %}
                                 ">
-                                    {{ record.status }}
+                                    {{ record.status | replace('_', ' ') | title }}
                                 </span>
                             </td>
 

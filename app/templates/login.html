@@ -311,7 +311,8 @@
                 </button>
             </form>
 
-            <!-- Divider -->
+            <!-- Divider & Register Link (User login only) -->
+            {% if not is_admin_login %}
             <div class="divider">
                 <span>New to FaceAttend?</span>
             </div>
@@ -320,6 +321,7 @@
             <div class="login-footer">
                 <p>Don't have an account? <a href="{{ url_for('auth.register') }}">Create one here</a></p>
             </div>
+            {% endif %}
 
             <!-- Footer Text -->
             <div class="text-center mt-4" style="color: #9ca3af; font-size: 0.85rem;">
