@@ -20,11 +20,19 @@ def dashboard():
 @views_bp.route('/register')
 @login_required
 def register():
+    if current_user.role == 'admin':
+        from flask import flash
+        flash('System Administrators are exempt from attendance and face registration.', 'info')
+        return redirect(url_for('views.admin_dashboard'))
     return render_template('register.html')
 
 @views_bp.route('/camera')
 @login_required
 def camera():
+    if current_user.role == 'admin':
+        from flask import flash
+        flash('System Administrators are exempt from attendance tracking.', 'info')
+        return redirect(url_for('views.admin_dashboard'))
     return render_template('camera.html')
 
 @views_bp.route('/report')

@@ -51,6 +51,12 @@ def _face():
 @login_required
 def register():
     try:
+        if current_user.role == 'admin':
+            return jsonify({
+                'success': False,
+                'message': 'Administrators are exempt from attendance tracking and cannot register face biometrics.'
+            }), 403
+
         logger.info(f"Face registration request for user_id={current_user.id}")
 
         fc = _face()
@@ -168,6 +174,14 @@ def recognize():
             if not user_data:
                 return jsonify({'success': True, 'found': False,
                                 'message': 'User account not found.'}), 200
+
+            if user_data.get('role') == 'admin':
+                return jsonify({
+                    'success': True,
+                    'found': True,
+                    'status': 'admin_exempt',
+                    'message': 'System Administrators are exempt from attendance tracking.'
+                }), 200
 
             display_name = user_data.get('full_name') or user_data.get('username')
             marked, status = mark_attendance(user_id, recognition_time)

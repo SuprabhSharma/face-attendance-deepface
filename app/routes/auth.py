@@ -249,16 +249,27 @@ def logout():
 @login_required
 def profile():
     """
-    User profile page showing account information and attendance history
+    User profile page showing account information.
+    Renders Admin Console for admins, or Attendance History for employees.
     """
     user_data = get_user_by_id(current_user.id)
-    
+
     if not user_data:
         logout_user()
         flash('User account not found', 'error')
         return redirect(url_for('auth.login'))
-    
-    return render_template('auth/profile.html', user=user_data)
+
+    admin_stats = {}
+    if user_data.get('role') == 'admin':
+        from app.models.db import get_all_users
+        all_users = get_all_users()
+        admin_stats = {
+            'total_users': len(all_users),
+            'enrolled_biometrics': sum(1 for u in all_users if u.get('embedding')),
+            'active_employees': sum(1 for u in all_users if u.get('role') != 'admin' and u.get('status') == 'active')
+        }
+
+    return render_template('auth/profile.html', user=user_data, admin_stats=admin_stats)
 
 
 @auth_bp.route('/update-profile-picture', methods=['POST'])
