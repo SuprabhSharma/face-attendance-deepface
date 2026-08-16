@@ -539,10 +539,54 @@ def get_all_users():
     """Get all active users"""
     conn = get_db_connection()
     c = conn.cursor()
-    c.execute('SELECT id, username, email, full_name, role, embedding FROM users WHERE status = \'active\'')
+    c.execute("SELECT id, username, email, full_name, role, status, embedding FROM users WHERE status = 'active'")
     users = c.fetchall()
     conn.close()
     return users
+
+
+def get_currently_on_duty_count():
+    """
+    Real-time Live Working Employees Calculation:
+    Returns (count, status_message, is_shift_active).
+    Enforces 06:00 AM - 05:00 PM IST Mon-Sat shift window:
+    - If current time < 06:00:00 (Office unopened) -> 0
+    - If current time > 17:00:00 (Shift completed for the day / 0s remaining) -> 0
+    - If Sunday (Weekly off) -> 0
+    - Otherwise -> Count of non-admin active users who checked in today (present/late/half_day).
+    """
+    now_dt = datetime.now(IST)
+
+    # Sunday weekly off
+    if now_dt.weekday() == 6:
+        return 0, 'Office Closed (Sunday Off)', False
+
+    now_time = now_dt.strftime('%H:%M:%S')
+    today_date = now_dt.strftime('%Y-%m-%d')
+
+    if now_time < '06:00:00':
+        return 0, 'Shift Not Started (Opens 06:00 AM IST)', False
+
+    if now_time > '17:00:00':
+        return 0, 'Shift Completed (5:00 PM Off)', False
+
+    # Shift in progress! Query live database
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute('''
+        SELECT COUNT(DISTINCT a.user_id) as cnt
+        FROM attendance a
+        JOIN users u ON a.user_id = u.id
+        WHERE a.date = ?
+          AND a.status IN ('present', 'late', 'half_day')
+          AND u.role != 'admin'
+          AND u.status = 'active'
+    ''', (today_date,))
+    row = c.fetchone()
+    conn.close()
+
+    cnt = row['cnt'] if row else 0
+    return cnt, 'Shift In Progress (Live On-Duty)', True
 
 
 def get_all_users_admin():

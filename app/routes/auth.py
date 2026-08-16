@@ -261,12 +261,20 @@ def profile():
 
     admin_stats = {}
     if user_data.get('role') == 'admin':
-        from app.models.db import get_all_users
+        from app.models.db import get_all_users, get_currently_on_duty_count
         all_users = get_all_users()
+        on_duty_cnt, shift_msg, is_shift_active = get_currently_on_duty_count()
+        employees_count = sum(1 for u in all_users if u.get('role') != 'admin')
+        checkin_rate = round((on_duty_cnt / employees_count) * 100) if employees_count > 0 else 0
+
         admin_stats = {
             'total_users': len(all_users),
-            'enrolled_biometrics': sum(1 for u in all_users if u.get('embedding')),
-            'active_employees': sum(1 for u in all_users if u.get('role') != 'admin' and u.get('status') == 'active')
+            'enrolled_biometrics': sum(1 for u in all_users if u.get('role') != 'admin' and u.get('embedding')),
+            'active_employees': employees_count,
+            'on_duty_count': on_duty_cnt,
+            'shift_msg': shift_msg,
+            'is_shift_active': is_shift_active,
+            'checkin_rate': checkin_rate
         }
 
     return render_template('auth/profile.html', user=user_data, admin_stats=admin_stats)

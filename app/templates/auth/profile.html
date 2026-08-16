@@ -292,17 +292,25 @@
 
                         <!-- System Stat Pills -->
                         <div class="d-flex flex-wrap gap-3 mb-4">
+                            <div class="stat-pill flex-fill {% if admin_stats.is_shift_active %}bg-success bg-opacity-10{% else %}bg-secondary bg-opacity-10{% endif %}">
+                                <h3 class="{% if admin_stats.is_shift_active %}text-success{% else %}text-secondary{% endif %}">{{ admin_stats.on_duty_count or 0 }}</h3>
+                                <div class="fw-bold" style="font-size:0.78rem;">🟢 Currently On Duty</div>
+                                <small class="d-block text-truncate" style="font-size:0.68rem;max-width:140px;margin:0 auto;" title="{{ admin_stats.shift_msg }}">{{ admin_stats.shift_msg }}</small>
+                            </div>
                             <div class="stat-pill bg-primary bg-opacity-10 flex-fill">
                                 <h3 class="text-primary">{{ admin_stats.active_employees or 0 }}</h3>
-                                <small class="fw-semibold">Active Employees</small>
-                            </div>
-                            <div class="stat-pill bg-success bg-opacity-10 flex-fill">
-                                <h3 class="text-success">{{ admin_stats.enrolled_biometrics or 0 }}</h3>
-                                <small class="fw-semibold">Enrolled Biometrics</small>
+                                <div class="fw-bold" style="font-size:0.78rem;">👥 Active Employees</div>
+                                <small class="d-block" style="font-size:0.68rem;">Registered Accounts</small>
                             </div>
                             <div class="stat-pill bg-indigo bg-opacity-10 flex-fill" style="background:#eef2ff;">
-                                <h3 style="color:#4f46e5;">{{ admin_stats.total_users or 0 }}</h3>
-                                <small class="fw-semibold" style="color:#4f46e5;">Total Accounts</small>
+                                <h3 style="color:#4f46e5;">{{ admin_stats.enrolled_biometrics or 0 }}</h3>
+                                <div class="fw-bold" style="font-size:0.78rem;color:#4f46e5;">📸 Enrolled Faces</div>
+                                <small class="d-block" style="font-size:0.68rem;color:#6366f1;">Biometric Enrolled</small>
+                            </div>
+                            <div class="stat-pill bg-info bg-opacity-10 flex-fill">
+                                <h3 class="text-info">{{ admin_stats.checkin_rate or 0 }}%</h3>
+                                <div class="fw-bold" style="font-size:0.78rem;">⏱️ Check-In Rate</div>
+                                <small class="d-block" style="font-size:0.68rem;">Today's Participation</small>
                             </div>
                         </div>
 
