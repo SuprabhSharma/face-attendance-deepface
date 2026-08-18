@@ -83,35 +83,6 @@ FaceAttend implements a strict, automated **6-Day Work Week (Monday to Saturday,
 
 ---
 
-## 🏗️ System Architecture
-
-```mermaid
-graph TD
-    Client["📱 Client Browser (Webcam / Canvas)"] -->|Base64 Image Payload| Gunicorn["🌐 Gunicorn WSGI Server"]
-    Gunicorn --> FlaskApp["⚙️ Flask Core Application Engine"]
-    
-    subgraph "Application Core"
-        FlaskApp --> AuthModule["🔐 Flask-Login & PBKDF2 Auth"]
-        FlaskApp --> FaceService["🤖 Face Service (SFace Model)"]
-        FlaskApp --> PhotoStudio["🎨 Canvas Photo Crop Studio"]
-        FlaskApp --> APScheduler["⏰ APScheduler Background Daemon"]
-    end
-
-    subgraph "Database Layer (Unified DB Adapter)"
-        FlaskApp --> DBAdapter["🗄️ Database Adapter (db.py)"]
-        DBAdapter -->|DATABASE_URL present| PostgresDB[("🐘 Managed Cloud PostgreSQL")]
-        DBAdapter -->|Offline / Fallback| SQLiteDB[("💾 Local SQLite (attendance_system.db)")]
-    end
-
-    subgraph "Automated Scheduled Tasks"
-        APScheduler -->|17:00 IST Mon-Sat| AutoAbsent["❌ Mark Shift Absentees"]
-        APScheduler -->|17:15 IST Mon-Sat| DailySummary["📧 Daily Shift Summaries"]
-        APScheduler -->|Month End 23:00| MonthlyReport["📊 Compile Monthly Analytics"]
-    end
-```
-
----
-
 ## 🤖 Neural Face Recognition Pipeline
 
 Face detection and embedding extraction use **SFace** (Spherical Feature Face Recognition), an ultra-efficient deep convolutional neural network:
