@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, send_from_directory, current_app
 from flask_login import login_required, current_user, logout_user
-from app.models.db import get_all_users_admin, get_all_attendance_admin
+from app.models.db import get_all_users_admin
 from app.routes.auth import role_required
 import os
 
@@ -44,13 +44,10 @@ def report():
 @login_required
 @role_required('admin')
 def admin_dashboard():
-    users = get_all_users_admin()
-    attendance_records = get_all_attendance_admin(limit=200)
-    return render_template(
-        'admin/dashboard.html',
-        users=users,
-        attendance_records=attendance_records
-    )
+    # The dashboard loads live attendance asynchronously. This keeps the
+    # initial HTML small and prevents historical records from being rendered
+    # into the page on every admin visit.
+    return render_template('admin/dashboard.html')
 
 @views_bp.route('/admin/users')
 @login_required
@@ -106,8 +103,8 @@ def delete_user_route(user_id):
 @login_required
 @role_required('admin')
 def admin_attendance():
-    attendance_records = get_all_attendance_admin(limit=1000)
-    return render_template('admin/attendance.html', attendance_records=attendance_records)
+    # Keep the existing URL/bookmark, but use the same live admin dashboard.
+    return render_template('admin/dashboard.html')
 
 # ── PWA: Serve sw.js from root scope (browsers require this exact path) ──
 @views_bp.route('/sw.js')

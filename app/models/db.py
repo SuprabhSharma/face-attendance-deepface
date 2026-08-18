@@ -186,6 +186,8 @@ def init_db(force=False):
         ''')
         c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_user_id ON attendance(user_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_date_user ON attendance(date, user_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_user_date ON attendance(user_id, date)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_status ON attendance(status)')
 
         c.execute('''
@@ -306,6 +308,8 @@ def init_db(force=False):
         ''')
         c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_user_id ON attendance(user_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_date_user ON attendance(date, user_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_user_date ON attendance(user_id, date)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_attendance_status ON attendance(status)')
 
         c.execute('''
@@ -877,6 +881,242 @@ def get_all_attendance_admin(limit=500):
             d['time_in'] = d['time_in'].strftime('%H:%M:%S')
         cleaned.append(d)
     return cleaned
+
+
+def _format_db_date(value):
+    """Return a database date value as an ISO date string."""
+    if value is None:
+        return None
+    if hasattr(value, 'strftime'):
+        return value.strftime('%Y-%m-%d')
+    return str(value)[:10]
+
+
+def _format_db_time(value):
+    """Return a database time value as HH:MM:SS."""
+    if value is None:
+        return None
+    if hasattr(value, 'strftime'):
+        return value.strftime('%H:%M:%S')
+    return str(value)[:8]
+
+
+def _attendance_status_for_admin(raw_status, time_in, record_date, today_date, now_time):
+    """Resolve a record, including users that have no attendance row yet.
+
+    A missing record on a previous working day is absent. A missing record on
+    the current day remains pending until the shift closes, which prevents the
+    dashboard from incorrectly calling someone absent at 9 AM.
+    """
+    resolved = resolve_attendance_status(raw_status, time_in)
+    if resolved != 'absent':
+        return resolved
+
+    if raw_status == 'absent' or time_in:
+        return 'absent'
+
+    if record_date < today_date or (record_date == today_date and now_time >= '17:00:00'):
+        return 'absent'
+    return 'pending'
+
+
+def get_admin_today_attendance(attendance_date=None):
+    """Return one live status row for every active non-admin user.
+
+    This is intentionally driven from users with a LEFT JOIN to attendance.
+    Therefore a user who has not checked in still appears as pending/absent.
+    """
+    now_dt = datetime.now(IST)
+    today_date = attendance_date or now_dt.strftime('%Y-%m-%d')
+    now_time = now_dt.strftime('%H:%M:%S')
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute('''
+        SELECT
+            u.id AS user_id,
+            u.username,
+            u.email,
+            u.full_name,
+            u.role,
+            u.status AS user_status,
+            CASE WHEN u.embedding IS NOT NULL AND u.embedding <> '' THEN 1 ELSE 0 END AS is_enrolled,
+            a.id AS attendance_id,
+            a.date AS attendance_date,
+            a.time_in,
+            a.time_out,
+            a.status AS raw_status,
+            a.notes,
+            a.marked_by,
+            a.created_at,
+            a.updated_at
+        FROM users u
+        LEFT JOIN attendance a
+            ON a.user_id = u.id AND a.date = ?
+        WHERE u.status = 'active' AND u.role <> 'admin'
+        ORDER BY LOWER(COALESCE(u.full_name, u.username)), u.id
+    ''', (today_date,))
+    rows = c.fetchall()
+    conn.close()
+
+    records = []
+    counts = {'present': 0, 'late': 0, 'half_day': 0, 'absent': 0, 'pending': 0}
+    for row in rows:
+        d = dict(row)
+        row_date = _format_db_date(d.get('attendance_date')) or today_date
+        time_in = _format_db_time(d.get('time_in'))
+        status = _attendance_status_for_admin(
+            d.get('raw_status'), time_in, row_date, today_date, now_time
+        )
+        counts[status] = counts.get(status, 0) + 1
+        records.append({
+            'user_id': d.get('user_id'),
+            'username': d.get('username'),
+            'full_name': d.get('full_name') or d.get('username'),
+            'email': d.get('email'),
+            'role': d.get('role'),
+            'is_enrolled': bool(d.get('is_enrolled')),
+            'attendance_id': d.get('attendance_id'),
+            'date': today_date,
+            'time_in': time_in,
+            'time_out': _format_db_time(d.get('time_out')),
+            'status': status,
+            'raw_status': d.get('raw_status'),
+            'notes': d.get('notes'),
+            'marked_by': d.get('marked_by'),
+        })
+
+    return {
+        'date': today_date,
+        'records': records,
+        'counts': counts,
+        'total_users': len(records),
+        'is_shift_closed': now_time >= '17:00:00',
+        'generated_at': now_dt.isoformat(),
+    }
+
+
+def get_admin_user_attendance_history(user_id, start_date=None, end_date=None,
+                                      status_filter=None, page=1, page_size=31):
+    """Return a paginated history that includes implicit absent working days."""
+    today = datetime.now(IST).date()
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute('''
+        SELECT id, username, email, full_name, role, status,
+               embedding, created_at
+        FROM users
+        WHERE id = ?
+    ''', (user_id,))
+    user = c.fetchone()
+    if not user or user.get('role') == 'admin':
+        conn.close()
+        return None
+
+    user = dict(user)
+    created_value = user.get('created_at')
+    if hasattr(created_value, 'date'):
+        created_date = created_value.date()
+    else:
+        try:
+            created_date = datetime.strptime(str(created_value)[:10], '%Y-%m-%d').date()
+        except (TypeError, ValueError):
+            created_date = today
+
+    def parse_date(value, fallback):
+        try:
+            return datetime.strptime(value, '%Y-%m-%d').date() if value else fallback
+        except (TypeError, ValueError):
+            return fallback
+
+    start = parse_date(start_date, created_date)
+    end = min(parse_date(end_date, today), today)
+    if start < created_date:
+        start = created_date
+    if start > end:
+        # Invalid/future ranges resolve to the latest valid date instead of
+        # generating future "pending" attendance rows.
+        start = end
+
+    c.execute('''
+        SELECT a.date, a.time_in, a.time_out, a.status, a.notes,
+               a.marked_by, a.id AS attendance_id
+        FROM attendance a
+        WHERE a.user_id = ? AND a.date BETWEEN ? AND ?
+        ORDER BY a.date DESC
+    ''', (user_id, start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d')))
+    attendance_rows = c.fetchall()
+    conn.close()
+
+    by_date = {}
+    for row in attendance_rows:
+        d = dict(row)
+        date_text = _format_db_date(d.get('date'))
+        by_date[date_text] = d
+
+    now_dt = datetime.now(IST)
+    today_text = today.strftime('%Y-%m-%d')
+    now_time = now_dt.strftime('%H:%M:%S')
+    all_records = []
+    cursor_date = start
+    while cursor_date <= end:
+        # Existing business policy is Monday-Saturday; Sunday is weekly off.
+        if cursor_date.weekday() != 6:
+            date_text = cursor_date.strftime('%Y-%m-%d')
+            source = by_date.get(date_text)
+            raw_status = source.get('status') if source else None
+            time_in = _format_db_time(source.get('time_in')) if source else None
+            status = _attendance_status_for_admin(
+                raw_status, time_in, date_text, today_text, now_time
+            )
+            all_records.append({
+                'attendance_id': source.get('attendance_id') if source else None,
+                'user_id': user_id,
+                'date': date_text,
+                'time_in': time_in,
+                'time_out': _format_db_time(source.get('time_out')) if source else None,
+                'status': status,
+                'raw_status': raw_status,
+                'notes': source.get('notes') if source else None,
+                'marked_by': source.get('marked_by') if source else 'auto_absent',
+            })
+        cursor_date += timedelta(days=1)
+
+    summary = {'present': 0, 'late': 0, 'half_day': 0, 'absent': 0, 'pending': 0}
+    for record in all_records:
+        summary[record['status']] = summary.get(record['status'], 0) + 1
+
+    if status_filter and status_filter in summary:
+        all_records = [r for r in all_records if r['status'] == status_filter]
+
+    try:
+        page = max(1, int(page))
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        page_size = min(100, max(10, int(page_size)))
+    except (TypeError, ValueError):
+        page_size = 31
+
+    total = len(all_records)
+    start_index = (page - 1) * page_size
+    return {
+        'user': {
+            'id': user['id'],
+            'username': user['username'],
+            'full_name': user.get('full_name') or user.get('username'),
+            'email': user.get('email'),
+            'is_enrolled': bool(user.get('embedding')),
+        },
+        'records': all_records[start_index:start_index + page_size],
+        'summary': summary,
+        'total': total,
+        'page': page,
+        'page_size': page_size,
+        'pages': max(1, (total + page_size - 1) // page_size),
+        'start_date': start.strftime('%Y-%m-%d'),
+        'end_date': end.strftime('%Y-%m-%d'),
+    }
 
 
 def get_attendance_today():

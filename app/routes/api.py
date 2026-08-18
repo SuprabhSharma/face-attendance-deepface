@@ -9,7 +9,8 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 logger = logging.getLogger('app')
 
 from app.models.db import (
-    get_user_by_id, get_attendance_by_user, mark_attendance, get_all_users
+    get_user_by_id, get_attendance_by_user, mark_attendance, get_all_users,
+    get_admin_today_attendance, get_admin_user_attendance_history
 )
 from app.services.email_service import EmailService
 
@@ -307,4 +308,54 @@ def get_users():
         return jsonify({'success': True, 'data': res})
     except Exception as e:
         logger.error(f"Error retrieving users: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+def _admin_api_allowed():
+    """Return an API response for unauthorized admin requests, if any."""
+    if not current_user.is_authenticated:
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': 'Administrator access required'}), 403
+    return None
+
+
+@api_bp.route('/admin/attendance/today', methods=['GET'])
+@login_required
+def admin_attendance_today():
+    """Live roster: exactly one current-day status per active non-admin user."""
+    denied = _admin_api_allowed()
+    if denied:
+        return denied
+
+    try:
+        payload = get_admin_today_attendance()
+        return jsonify({'success': True, **payload})
+    except Exception as e:
+        logger.exception('Error retrieving live admin attendance')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_bp.route('/admin/attendance/history/<int:user_id>', methods=['GET'])
+@login_required
+def admin_attendance_history(user_id):
+    """Paginated individual history, including implicit absent workdays."""
+    denied = _admin_api_allowed()
+    if denied:
+        return denied
+
+    try:
+        payload = get_admin_user_attendance_history(
+            user_id=user_id,
+            start_date=request.args.get('start_date'),
+            end_date=request.args.get('end_date'),
+            status_filter=request.args.get('status'),
+            page=request.args.get('page', 1),
+            page_size=request.args.get('page_size', 31),
+        )
+        if payload is None:
+            return jsonify({'success': False, 'message': 'User not found'}), 404
+        return jsonify({'success': True, **payload})
+    except Exception as e:
+        logger.exception('Error retrieving admin user history')
         return jsonify({'success': False, 'message': str(e)}), 500
