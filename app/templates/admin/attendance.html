@@ -83,7 +83,6 @@
                             <th class="px-3 py-3">Date</th>
                             <th class="px-3 py-3">Check-In Time</th>
                             <th class="px-3 py-3">Status</th>
-                            <th class="px-3 py-3">Working Hours</th>
                             <th class="px-4 py-3">Verification Source</th>
                         </tr>
                     </thead>
@@ -96,7 +95,7 @@
                             data-date="{{ record.date }}" 
                             data-status="{{ st }}">
 
-                            <!-- 1. Unified Employee Identity Column -->
+                            <!-- 1. Employee Identity Column (Clean registered name only) -->
                             <td class="px-4 py-3">
                                 <div class="d-flex align-items-center gap-3">
                                     {% if record.profile_picture %}
@@ -108,7 +107,6 @@
                                     {% endif %}
                                     <div>
                                         <div class="fw-bold text-dark">{{ record.full_name or record.username }}</div>
-                                        <small class="text-muted font-monospace" style="font-size: 0.75rem;">@{{ record.username }}</small>
                                     </div>
                                 </div>
                             </td>
@@ -149,24 +147,7 @@
                                 </span>
                             </td>
 
-                            <!-- 5. Calculated Shift Working Hours -->
-                            <td class="px-3 py-3">
-                                {% if st == 'present' %}
-                                    <span class="fw-semibold text-success"><i class="bi bi-stopwatch me-1"></i>8h 00m</span>
-                                    <small class="text-muted d-block" style="font-size: 0.7rem;">Full Day Shift</small>
-                                {% elif st == 'late' %}
-                                    <span class="fw-semibold text-warning text-dark"><i class="bi bi-stopwatch me-1"></i>7h 30m</span>
-                                    <small class="text-muted d-block" style="font-size: 0.7rem;">Late Arrival</small>
-                                {% elif st == 'half_day' %}
-                                    <span class="fw-semibold text-primary"><i class="bi bi-stopwatch me-1"></i>4h 00m</span>
-                                    <small class="text-muted d-block" style="font-size: 0.7rem;">Half Day Shift</small>
-                                {% else %}
-                                    <span class="text-muted"><i class="bi bi-dash-circle me-1"></i>0h 00m</span>
-                                    <small class="text-danger d-block" style="font-size: 0.7rem;">Absent / Missed</small>
-                                {% endif %}
-                            </td>
-
-                            <!-- 6. Verification Source -->
+                            <!-- 5. Verification Source -->
                             <td class="px-4 py-3">
                                 {% if record.marked_by == 'face_recognition' or record.marked_by == 'face_scan' or not record.marked_by %}
                                     <span class="badge bg-light text-dark border">
@@ -186,14 +167,14 @@
                         </tr>
                         {% else %}
                         <tr id="noRecordsRow">
-                            <td colspan="6" class="text-center py-5 text-muted">
+                            <td colspan="5" class="text-center py-5 text-muted">
                                 <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary"></i>
                                 No attendance records found in database.
                             </td>
                         </tr>
                         {% endfor %}
                         <tr id="noFilterMatchRow" class="d-none">
-                            <td colspan="6" class="text-center py-5 text-muted">
+                            <td colspan="5" class="text-center py-5 text-muted">
                                 <i class="bi bi-funnel fs-2 d-block mb-2 text-secondary"></i>
                                 No records match the selected filters.
                             </td>
