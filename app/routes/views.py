@@ -103,8 +103,8 @@ def delete_user_route(user_id):
 @login_required
 @role_required('admin')
 def admin_attendance():
-    # Keep the existing URL/bookmark, but use the same live admin dashboard.
-    return render_template('admin/dashboard.html')
+    # Preserve old bookmarks without keeping a second attendance section.
+    return redirect(url_for('views.admin_dashboard'))
 
 # ── PWA: Serve sw.js from root scope (browsers require this exact path) ──
 @views_bp.route('/sw.js')

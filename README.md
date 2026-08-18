@@ -26,16 +26,17 @@
 4. [🤖 Neural Face Recognition Pipeline](#-neural-face-recognition-pipeline)
 5. [🎨 Interactive Profile Photo Studio](#-interactive-profile-photo-studio)
 6. [📊 Real-Time Live Employee Dashboard](#-real-time-live-employee-dashboard)
-7. [🗄️ Cloud PostgreSQL & Dual-Engine Database](#️-cloud-postgresql--dual-engine-database)
-8. [⏰ Background Automation & Scheduler](#-background-automation--scheduler)
-9. [🔐 Authentication & Role Management](#-authentication--role-management)
-10. [📡 API Reference (22 Endpoints)](#-api-reference-22-endpoints)
-11. [📁 Project Directory Tree](#-project-directory-tree)
-12. [⚡ Getting Started (Local Development)](#-getting-started-local-development)
-13. [☁️ Production Deployment (Render)](#️-production-deployment-render)
-14. [⚙️ Environment Variables Reference](#️-environment-variables-reference)
-15. [🛡️ Security & Anti-Spoofing Architecture](#️-security--anti-spoofing-architecture)
-16. [📄 License](#-license)
+7. [Admin Attendance Logs & Operations](#admin-attendance-logs--operations)
+8. [🗄️ Cloud PostgreSQL & Dual-Engine Database](#️-cloud-postgresql--dual-engine-database)
+9. [⏰ Background Automation & Scheduler](#-background-automation--scheduler)
+10. [🔐 Authentication & Role Management](#-authentication--role-management)
+11. [📡 API Reference (24 Endpoints)](#-api-reference-24-endpoints)
+12. [📁 Project Directory Tree](#-project-directory-tree)
+13. [⚡ Getting Started (Local Development)](#-getting-started-local-development)
+14. [☁️ Production Deployment (Render)](#️-production-deployment-render)
+15. [⚙️ Environment Variables Reference](#️-environment-variables-reference)
+16. [🛡️ Security & Anti-Spoofing Architecture](#️-security--anti-spoofing-architecture)
+17. [📄 License](#-license)
 
 ---
 
@@ -43,14 +44,14 @@
 
 * **Lightweight Neural Biometrics (SFace):** Ultra-fast **28MB** deep neural network (compared to VGG-Face at 580MB), optimized for real-time CPU face recognition on cloud servers (Render free tier / 512MB RAM).
 * **6-Day Corporate Work Week (Mon–Sat):** Complete 9-to-5 automated corporate lifecycle with on-time grace periods, late-entry logging, half-day detection, Sunday weekly off enforcement, and automated shift-end device locking.
-* **Real-Time Live Dashboard:** Live working hours ticker that auto-freezes at 5:00 PM shift end, visual 6-day week strip (Mon–Sat), dynamic shift timeline bar, streak counter (skips Sundays), and auto-sync polling every 60s.
+* **Real-Time Live Dashboard:** Live working hours ticker that auto-freezes at 5:00 PM shift end, visual 6-day week strip (Mon–Sat), dynamic shift timeline bar, streak counter (skips Sundays), and automatic client refresh.
 * **Interactive Circular Photo Cropper Studio:** In-browser canvas editor with drag-and-pan positioning, zoom slider / mouse wheel scaling, 90° rotation, and real-time avatar sync across Dashboard, Top Navbar, and Sidebar.
 * **Dual-Engine Smart Database Adapter:** Automatically uses **Cloud PostgreSQL** in production when `DATABASE_URL` is set, and falls back seamlessly to **Local SQLite** for offline development.
 * **Automated Cron Jobs (`APScheduler`):**
   * Auto-marks absentees at 5:00 PM IST (Mon–Sat).
   * Auto-generates daily summary logs at 5:15 PM IST.
   * Auto-compiles monthly reports at the end of each month.
-* **Dedicated Admin Control Panel:** Separate secure admin login, full user directory management, and real-time attendance logs with canonical 9-to-5 status resolution.
+* **Dedicated Admin Control Panel:** Separate secure admin login, a single consolidated Attendance Logs dashboard, full user directory management, real-time current-day employee status, and paginated individual history.
 
 ---
 
@@ -98,7 +99,7 @@ graph TD
 
     subgraph "Database Layer (Unified DB Adapter)"
         FlaskApp --> DBAdapter["🗄️ Database Adapter (db.py)"]
-        DBAdapter -->|DATABASE_URL present| PostgresDB[("🐘 Render PostgreSQL Cloud")]
+        DBAdapter -->|DATABASE_URL present| PostgresDB[("🐘 Managed Cloud PostgreSQL")]
         DBAdapter -->|Offline / Fallback| SQLiteDB[("💾 Local SQLite (attendance_system.db)")]
     end
 
@@ -154,6 +155,43 @@ FaceAttend includes a full-featured, zero-dependency client-side photo editor on
 
 ---
 
+## Admin Attendance Logs & Operations
+
+The administrator portal now uses one consolidated dashboard at `/admin`. The former duplicate All Attendance screen has been removed from the navigation and the legacy `/admin/attendance` URL safely redirects to the main dashboard.
+
+### Current-Day Command View
+
+The Attendance Logs dashboard is designed as a live employee roster rather than a partial attendance table:
+
+* Shows every active non-admin user for the current IST working date.
+* Uses a database `LEFT JOIN` from `users` to `attendance`, so users without an attendance row are still visible.
+* Displays Present, Late, Half Day, Pending, and Absent states with clear visual badges.
+* Treats a missing check-in as Pending before 5:00 PM and Absent after shift close, preventing false absences during the workday.
+* Displays summary counts for employees, present, late, half-day, absent, and pending users.
+* Supports employee search, status filtering, and biometric enrollment filtering.
+* Synchronizes through one responsive live-sync control with manual refresh and automatic 30-second polling.
+
+### Individual History
+
+Administrators can open View history for any employee and inspect:
+
+* Complete working-day history, including implicit absent days where no row was stored.
+* Date-range and status filters.
+* Paginated records for memory-efficient rendering.
+* Present, Late, Half Day, Absent, and Pending summary totals.
+* Check-in time, attendance source, notes, and record metadata.
+
+### Admin Navigation
+
+The admin experience contains two focused destinations:
+
+* **Attendance Logs** — live current-day monitoring and individual history.
+* **User Management** — account lifecycle, biometric enrollment status, and protected user deletion.
+
+Responsive shortcuts are available between both destinations, while the sidebar remains the canonical navigation surface.
+
+---
+
 ## 🗄️ Cloud PostgreSQL & Dual-Engine Database
 
 The database adapter (`app/models/db.py`) automatically auto-detects its environment:
@@ -172,6 +210,8 @@ else:
 ### Key Database Tables:
 * `users` &mdash; Account credentials, role (`user`/`admin`), PBKDF2 hash, SFace `embedding`, and `profile_picture`.
 * `attendance` &mdash; Daily attendance rows (`date`, `time_in`, `time_out`, `status`, `marked_by`).
+* **Admin roster resolution** &mdash; Current-day status is calculated from the complete active-user roster, so absent and pending employees remain visible even when no attendance row exists.
+* **History indexes** &mdash; Composite `(date, user_id)` and `(user_id, date)` indexes support fast current-day joins and individual history queries.
 * `working_hours` &mdash; Shift configuration per day of week (Mon–Sat active, Sun off).
 * `attendance_reports` &mdash; Generated daily, weekly, and monthly aggregate analytics.
 * `audit_logs` &mdash; Security audit trail for profile updates, logins, and overrides.
@@ -181,6 +221,8 @@ else:
 ## ⏰ Background Automation & Scheduler
 
 Powered by **APScheduler**, scheduled in the **Asia/Kolkata (IST)** timezone:
+
+The admin dashboard does not depend on a successful scheduler run to display a missing employee. It calculates current-day Pending/Absent status from the active-user roster and reconstructs missing historical working days as absent. The scheduler remains responsible for persisting end-of-day absent rows, audit events, summaries, and monthly maintenance.
 
 ```python
 # scheduler.py
@@ -214,7 +256,7 @@ scheduler.add_job(
 
 ---
 
-## 📡 API Reference (22 Endpoints)
+## 📡 API Reference (24 Endpoints)
 
 ### 🌐 JSON REST APIs
 | Method | Endpoint | Description |
@@ -223,6 +265,8 @@ scheduler.add_job(
 | `POST` | `/api/register-user` | Face enrollment & SFace 128-D embedding extraction |
 | `GET` | `/api/attendance` | Real-time user attendance logs & canonical status resolution |
 | `GET` | `/api/users` | List all registered users with biometric status |
+| `GET` | `/api/admin/attendance/today` | Admin-only live current-day roster for every active non-admin user |
+| `GET` | `/api/admin/attendance/history/<user_id>` | Admin-only paginated user history with implicit absent working days |
 | `POST` | `/auth/update-profile-picture` | Save real-time cropped profile photo / webcam snapshot |
 | `POST` | `/auth/remove-profile-picture` | Delete user profile picture |
 
@@ -244,9 +288,9 @@ scheduler.add_job(
 | `GET` | `/report` | Attendance analytics, date filters, and working hours table |
 | `GET` | `/auth/profile` | My Profile page with interactive circular photo cropper studio |
 | `GET` | `/register` | Biometric face capture onboarding view |
-| `GET` | `/admin` | Administrator Control Panel & overview statistics |
+| `GET` | `/admin` | Consolidated Attendance Logs dashboard with live current-day employee status |
 | `GET` | `/admin/users` | Admin user directory & account management |
-| `GET` | `/admin/attendance` | Admin complete attendance log with canonical statuses |
+| `GET` | `/admin/attendance` | Legacy compatibility URL; redirects to `/admin` |
 | `GET` | `/health` | Cloud deployment health check probe (Render / Docker) |
 | `GET` | `/static/<path:filename>` | Static asset engine (CSS, JS, 3D Logo) |
 
@@ -285,9 +329,8 @@ face-attendance-deepface/
 │       ├── register.html         # Face enrollment webcam capture view
 │       ├── report.html           # Historical attendance analytics with Mon-Sat metrics
 │       ├── sidebar.html          # Sidebar navigation with 3D logo and user avatar
-│       ├── admin/
-│       │   ├── attendance.html   # Admin global attendance log with status badges
-│       │   ├── dashboard.html    # Admin system overview and quick metrics
+ │       ├── admin/
+ │       │   ├── dashboard.html    # Consolidated Admin Attendance Logs dashboard
 │       │   └── users.html        # Admin user directory management
 │       └── auth/
 │           ├── change_password.html # Secure password change portal
@@ -345,14 +388,16 @@ Open [http://localhost:5000](http://localhost:5000) in your browser.
 
 ## ☁️ Production Deployment (Render)
 
-The project includes `render.yaml` for 1-click cloud deployment with managed PostgreSQL:
+The project includes `render.yaml` for 1-click cloud deployment of the web service. PostgreSQL is configured through the `DATABASE_URL` environment variable:
 
 1. Push your repository to GitHub.
 2. In [Render Dashboard](https://dashboard.render.com), click **New +** &rarr; **Blueprint**.
 3. Connect your repository. Render will automatically provision:
    * **Web Service:** Python 3.10 environment with Gunicorn WSGI.
-   * **Database:** Managed PostgreSQL instance with auto-injected `DATABASE_URL`.
-4. Deploy completes in under 3 minutes with automated SSL (HTTPS).
+4. Configure `DATABASE_URL` with your managed PostgreSQL provider (for example Neon or Supabase) and redeploy. The application automatically selects PostgreSQL when this variable is present and uses SQLite only for local development.
+5. Deploy completes with automated SSL (HTTPS).
+
+> The current `render.yaml` defines the web service only. Do not rely on Render Free PostgreSQL for permanent attendance data: Render Free databases expire after 30 days. Use a persistent external PostgreSQL free tier for a zero-cost pilot, and maintain encrypted backups.
 
 ---
 

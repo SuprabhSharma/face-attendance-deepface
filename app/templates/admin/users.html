@@ -22,6 +22,9 @@
             </p>
         </div>
         <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('views.admin_dashboard') }}" class="btn btn-primary rounded-pill px-3 shadow-sm">
+                <i class="bi bi-speedometer2 me-1"></i>Admin Dashboard
+            </a>
             <span class="badge bg-primary fs-6 px-3 py-2 rounded-pill shadow-sm">
                 Total Accounts: {{ users|length }}
             </span>

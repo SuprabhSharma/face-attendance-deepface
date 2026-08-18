@@ -53,13 +53,6 @@
                     </a>
                 </li>
 
-                <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'views.admin_attendance' %}active bg-primary rounded{% endif %}" href="{{ url_for('views.admin_attendance') }}">
-                        <i class="bi bi-clipboard-data me-2"></i>
-                        <span>All Attendance</span>
-                    </a>
-                </li>
-
             {% endif %}
 
         </ul>
