@@ -8,13 +8,18 @@ views_bp = Blueprint('views', __name__)
 
 @views_bp.route('/')
 def index():
-    """Always start fresh - force logout"""
-    logout_user()   # 🔥 force logout every time
+    """Route root to appropriate dashboard if logged in, else login page"""
+    if current_user.is_authenticated:
+        if current_user.role == 'admin':
+            return redirect(url_for('views.admin_dashboard'))
+        return redirect(url_for('views.dashboard'))
     return redirect(url_for('auth.login'))
 
 @views_bp.route('/dashboard')
 @login_required
 def dashboard():
+    if current_user.role == 'admin':
+        return redirect(url_for('views.admin_dashboard'))
     return render_template('index.html')
 
 @views_bp.route('/register')
