@@ -431,6 +431,13 @@
       '</ul>';
   }
 
+  // Enforce hiding help buttons on profile & change-password pages
+  if (window.location.pathname.includes('/auth/profile') || window.location.pathname.includes('/auth/change-password')) {
+    document.querySelectorAll('[data-bs-target="#helpModal"]').forEach(el => {
+      el.remove();
+    });
+  }
+
   document.getElementById('helpModal').addEventListener('show.bs.modal', function () {
     const h = getHelp();
     // Header bg + icon
