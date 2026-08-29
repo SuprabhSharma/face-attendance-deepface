@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}Verify Email — FaceAttend{% endblock %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; }
+
+  .fa-register-shell {
+    position: fixed; inset: 0;
+    display: flex; z-index: 9999;
+    background: #0a0a0f;
+  }
+  .fa-panel-left {
+    flex: 0 0 42%;
+    background: linear-gradient(145deg, #0d1117 0%, #161b22 60%, #1c2128 100%);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 60px 48px;
+    position: relative; overflow: hidden;
+  }
+  .fa-panel-left::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 50% 30%, rgba(99,102,241,.18) 0%, transparent 70%);
+  }
+  .fa-grid {
+    position: absolute; inset: 0; opacity: .06;
+    background-image: linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .fa-brand { position: relative; text-align: center; z-index: 2; }
+  .fa-brand h2 {
+    font-size: 2rem; font-weight: 700;
+    color: #fff; letter-spacing: -.03em; margin: 0 0 8px;
+  }
+  .fa-brand p { color: rgba(255,255,255,.45); font-size: .95rem; margin: 0; }
+  .fa-features {
+    position: relative; z-index: 2;
+    margin-top: 48px; list-style: none; padding: 0; width: 100%;
+  }
+  .fa-features li {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,.06);
+    color: rgba(255,255,255,.65); font-size: .88rem;
+  }
+  .fa-features li:last-child { border-bottom: none; }
+  .fa-features li .fi {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: rgba(99,102,241,.18);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .fa-features li .fi i { color: #818cf8; font-size: 1rem; }
+
+  .fa-panel-right {
+    flex: 1;
+    background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    padding: 40px 56px;
+    overflow-y: auto;
+  }
+  .fa-form-box { width: 100%; max-width: 440px; }
+  .fa-form-box h1 {
+    font-size: 1.75rem; font-weight: 700;
+    color: #0f172a; letter-spacing: -.03em; margin: 0 0 6px;
+  }
+  .fa-form-box .fa-sub {
+    color: #64748b; font-size: .9rem; margin: 0 0 28px;
+  }
+  .fa-form-box .fa-sub strong { color: #0f172a; }
+
+  .fa-alert {
+    border-radius: 10px; padding: 12px 16px; font-size: .875rem;
+    margin-bottom: 20px; display: flex; align-items: flex-start; gap: 10px;
+  }
+  .fa-alert.err { background: #fef2f2; color: #991b1b; border-left: 3px solid #ef4444; }
+  .fa-alert.ok  { background: #f0fdf4; color: #166534; border-left: 3px solid #22c55e; }
+
+  .otp-row {
+    display: flex; gap: 10px; justify-content: center;
+    margin: 8px 0 20px;
+  }
+  .otp-row input {
+    width: 48px; height: 56px;
+    text-align: center; font-size: 1.35rem; font-weight: 600;
+    border: 1.5px solid #e2e8f0; border-radius: 10px;
+    background: #f8fafc; color: #0f172a;
+    outline: none; font-family: 'Inter', sans-serif;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .otp-row input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+    background: #fff;
+  }
+
+  .fa-timer {
+    text-align: center; font-size: .85rem; color: #64748b;
+    margin-bottom: 16px;
+  }
+  .fa-timer strong { color: #0f172a; font-variant-numeric: tabular-nums; }
+
+  .fa-submit {
+    width: 100%; padding: 13px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff; border: none; border-radius: 10px;
+    font-size: .95rem; font-weight: 600; cursor: pointer;
+    letter-spacing: .01em;
+    transition: opacity .2s, transform .15s, box-shadow .2s;
+    box-shadow: 0 4px 14px rgba(99,102,241,.3);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .fa-submit:hover:not(:disabled) {
+    opacity: .92; transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(99,102,241,.4);
+  }
+  .fa-submit:disabled { opacity: .65; cursor: not-allowed; }
+
+  .fa-resend {
+    text-align: center; margin-top: 20px; font-size: .88rem; color: #64748b;
+  }
+  .fa-resend button {
+    background: none; border: none; color: #6366f1;
+    font-weight: 600; cursor: pointer; padding: 0;
+    font-size: .88rem;
+  }
+  .fa-resend button:disabled {
+    color: #94a3b8; cursor: not-allowed;
+  }
+  .fa-back {
+    display: block; text-align: center; margin-top: 16px;
+    font-size: .85rem; color: #94a3b8; text-decoration: none;
+  }
+  .fa-back:hover { color: #6366f1; }
+
+  @media (max-width: 768px) {
+    .fa-panel-left { display: none; }
+    .fa-panel-right { padding: 40px 28px; }
+    .otp-row input { width: 42px; height: 50px; font-size: 1.2rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fa-register-shell">
+  <div class="fa-panel-left">
+    <div class="fa-grid"></div>
+    <div class="fa-brand">
+      <div class="mb-3">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" class="rounded-4 shadow" style="width: 84px; height: 84px; object-fit: cover;" alt="FaceAttend Logo">
+      </div>
+      <h2>FaceAttend</h2>
+      <p>Verify your Gmail to finish signup</p>
+    </div>
+    <ul class="fa-features">
+      <li>
+        <span class="fi"><i class="bi bi-shield-check"></i></span>
+        One-time code · expires in minutes
+      </li>
+      <li>
+        <span class="fi"><i class="bi bi-envelope-check"></i></span>
+        Sent only to your Gmail address
+      </li>
+      <li>
+        <span class="fi"><i class="bi bi-lock-fill"></i></span>
+        Account is created only after verification
+      </li>
+    </ul>
+  </div>
+
+  <div class="fa-panel-right">
+    <div class="fa-form-box">
+      <h1>Check your email</h1>
+      <p class="fa-sub">
+        We sent a 6-digit code to <strong>{{ masked_email }}</strong>
+      </p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="fa-alert {{ 'err' if category == 'error' else 'ok' }}">
+              <i class="bi bi-{{ 'exclamation-circle-fill' if category == 'error' else 'check-circle-fill' }}"></i>
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <form method="POST" action="{{ url_for('auth.verify_email') }}" id="verifyForm" novalidate>
+        <input type="hidden" name="email" value="{{ email }}">
+        <div class="otp-row" id="otpRow">
+          {% for i in range(6) %}
+          <input type="text" name="otp_{{ i }}" id="otp_{{ i }}"
+                 maxlength="1" inputmode="numeric" pattern="[0-9]*"
+                 autocomplete="{{ 'one-time-code' if i == 0 else 'off' }}"
+                 aria-label="Digit {{ i + 1 }}">
+          {% endfor %}
+        </div>
+
+        <div class="fa-timer">
+          Code expires in <strong id="countdown">--:--</strong>
+        </div>
+
+        <button type="submit" class="fa-submit" id="verifyBtn">
+          <span id="btnLabel">Verify &amp; Create Account</span>
+          <span class="spinner-border spinner-border-sm d-none" id="btnSpinner"></span>
+        </button>
+      </form>
+
+      <div class="fa-resend">
+        Didn't get the code?
+        <form method="POST" action="{{ url_for('auth.resend_otp') }}" id="resendForm" style="display:inline;">
+          <input type="hidden" name="email" value="{{ email }}">
+          <button type="submit" id="resendBtn" {% if resend_cooldown > 0 or resend_count >= max_resends %}disabled{% endif %}>
+            Resend code
+            <span id="cooldownHint">{% if resend_cooldown > 0 %}({{ resend_cooldown }}s){% endif %}</span>
+          </button>
+        </form>
+        {% if resend_count >= max_resends %}
+          <div style="margin-top:6px;color:#b91c1c;">Resend limit reached.</div>
+        {% endif %}
+      </div>
+
+      <a class="fa-back" href="{{ url_for('auth.register') }}">← Back to registration</a>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const inputs = Array.from(document.querySelectorAll('#otpRow input'));
+  const form = document.getElementById('verifyForm');
+  const expiresSeconds = {{ expires_seconds|int }};
+  let remaining = expiresSeconds;
+  const countdownEl = document.getElementById('countdown');
+  const resendBtn = document.getElementById('resendBtn');
+  const cooldownHint = document.getElementById('cooldownHint');
+  let cooldown = {{ resend_cooldown|int }};
+
+  function fmt(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  function tickExpiry() {
+    if (remaining <= 0) {
+      countdownEl.textContent = '00:00';
+      countdownEl.style.color = '#b91c1c';
+      return;
+    }
+    countdownEl.textContent = fmt(remaining);
+    remaining -= 1;
+    setTimeout(tickExpiry, 1000);
+  }
+  tickExpiry();
+
+  function tickCooldown() {
+    if (cooldown <= 0) {
+      if (resendBtn && {{ 'false' if resend_count >= max_resends else 'true' }}) {
+        resendBtn.disabled = false;
+        if (cooldownHint) cooldownHint.textContent = '';
+      }
+      return;
+    }
+    if (resendBtn) resendBtn.disabled = true;
+    if (cooldownHint) cooldownHint.textContent = '(' + cooldown + 's)';
+    cooldown -= 1;
+    setTimeout(tickCooldown, 1000);
+  }
+  if (cooldown > 0) tickCooldown();
+
+  inputs.forEach((inp, idx) => {
+    inp.addEventListener('input', (e) => {
+      const v = e.target.value.replace(/\D/g, '');
+      e.target.value = v.slice(0, 1);
+      if (v && idx < inputs.length - 1) inputs[idx + 1].focus();
+      if (inputs.every(i => i.value.length === 1)) {
+        // optional auto-submit could go here; keep explicit for clarity
+      }
+    });
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !inp.value && idx > 0) {
+        inputs[idx - 1].focus();
+      }
+    });
+    inp.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const paste = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
+      for (let i = 0; i < inputs.length; i++) {
+        inputs[i].value = paste[i] || '';
+      }
+      const focusIdx = Math.min(paste.length, inputs.length - 1);
+      inputs[focusIdx].focus();
+    });
+  });
+
+  if (inputs[0]) inputs[0].focus();
+
+  form.addEventListener('submit', function() {
+    document.getElementById('btnLabel').textContent = 'Verifying…';
+    document.getElementById('btnSpinner').classList.remove('d-none');
+    document.getElementById('verifyBtn').disabled = true;
+  });
+
+  document.getElementById('resendForm').addEventListener('submit', function() {
+    if (resendBtn) resendBtn.disabled = true;
+  });
+})();
+</script>
+{% endblock %}

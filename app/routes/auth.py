@@ -7,15 +7,28 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_user, logout_user, login_required, current_user
 from functools import wraps
 import logging
+import os
 import re
+import secrets
+from datetime import timedelta
 from app.models.db import (
-    authenticate_user, 
-    create_user, 
+    authenticate_user,
+    create_user,
     get_user_by_username,
     get_user_by_email,
     get_user_by_id,
-    update_user_profile_picture
+    update_user_profile_picture,
+    hash_password,
+    hash_otp,
+    create_or_replace_pending_verification,
+    get_active_pending_by_email,
+    increment_pending_attempt,
+    mark_pending_used,
+    update_pending_resend,
+    _utc_now,
+    _parse_utc,
 )
+from app.services.email_service import email_service
 
 # Create blueprint
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -156,31 +169,53 @@ def admin_login():
     return _handle_login('admin')
 
 
+def _otp_config():
+    return {
+        'expires_minutes': int(os.getenv('OTP_EXPIRES_MINUTES', '10')),
+        'max_attempts': int(os.getenv('OTP_MAX_ATTEMPTS', '5')),
+        'resend_cooldown': int(os.getenv('OTP_RESEND_COOLDOWN_SECONDS', '60')),
+        'max_resends': int(os.getenv('OTP_MAX_RESENDS', '3')),
+    }
+
+
+def _generate_otp() -> str:
+    """Cryptographically secure six-digit numeric OTP."""
+    return f'{secrets.randbelow(1_000_000):06d}'
+
+
+def _mask_email(email: str) -> str:
+    if not email or '@' not in email:
+        return '***'
+    local, domain = email.split('@', 1)
+    if len(local) <= 2:
+        masked_local = local[0] + '*'
+    else:
+        masked_local = local[0] + ('*' * min(len(local) - 2, 6)) + local[-1]
+    return f'{masked_local}@{domain}'
+
+
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     """
-    User registration. Accepts only: full_name, email, password, confirm_password.
-    A URL-safe username is auto-derived from the name so the rest of the codebase
-    that references 'username' for login continues to work without changes.
+    Step 1 of registration: validate fields, check duplicates, send OTP.
+    User account is NOT created until OTP is verified at /auth/verify-email.
     """
     if current_user.is_authenticated:
         return redirect(url_for('views.dashboard'))
 
     if request.method == 'POST':
-        full_name        = request.form.get('full_name', '').strip()
-        email            = request.form.get('email', '').strip().lower()
-        password         = request.form.get('password', '')
+        full_name = request.form.get('full_name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
         confirm_password = request.form.get('confirm_password', '')
 
         errors = []
 
-        # Name validation — this IS the username
         if not full_name:
             errors.append('Your name is required.')
         elif len(full_name) < 2 or len(full_name) > 50:
             errors.append('Name must be 2–50 characters.')
 
-        # Email validation
         if not email:
             errors.append('Email address is required.')
         else:
@@ -188,7 +223,6 @@ def register():
             if not is_valid:
                 errors.append(msg)
 
-        # Password validation
         if not password:
             errors.append('Password is required.')
         else:
@@ -199,39 +233,220 @@ def register():
         if password != confirm_password:
             errors.append('Passwords do not match.')
 
-        # full_name IS the username — use it directly
         username = full_name
 
         if not errors:
             if get_user_by_username(username):
-                errors.append(f'The name "{full_name}" is already registered. Please sign in or use a different name.')
+                errors.append(
+                    f'The name "{full_name}" is already registered. Please sign in or use a different name.'
+                )
             if get_user_by_email(email):
                 errors.append('This email is already registered. Please sign in.')
 
         if errors:
             for error in errors:
                 flash(error, 'error')
-            logger.warning(f"Registration errors for email: {email}")
+            logger.warning('Registration validation failed for email=%s', email or '(empty)')
             return redirect(url_for('auth.register'))
 
-        try:
-            create_user(
-                username=username,
-                email=email,
-                password=password,
-                full_name=full_name,
-                role='user'
-            )
-            logger.info(f"New user registered: {full_name} ({username}) email: {email}")
-            flash('Account created successfully! Please sign in.', 'success')
-            return redirect(url_for('auth.login'))
+        cfg = _otp_config()
+        otp = _generate_otp()
+        password_hash = hash_password(password)
+        otp_hash_value = hash_otp(otp)
+        expires_at = _utc_now() + timedelta(minutes=cfg['expires_minutes'])
 
+        try:
+            create_or_replace_pending_verification(
+                email=email,
+                full_name=full_name,
+                username=username,
+                password_hash=password_hash,
+                otp_hash=otp_hash_value,
+                expires_at=expires_at,
+                resend_count=0,
+            )
         except Exception as e:
-            logger.error(f"Error creating user {username}: {str(e)}")
+            logger.error('Failed to store pending verification for %s: %s', email, type(e).__name__)
             flash('An error occurred during registration. Please try again.', 'error')
             return redirect(url_for('auth.register'))
 
+        sent = email_service.send_registration_otp(email, full_name, otp)
+        # Do not keep OTP in any variable beyond this point in logs
+        del otp
+
+        if not sent:
+            flash(
+                'We could not send the verification email right now. '
+                'Please try again in a moment. If the problem continues, contact support.',
+                'error',
+            )
+            logger.error('SMTP send failed during registration for %s — account not created', email)
+            return redirect(url_for('auth.register'))
+
+        session['pending_verify_email'] = email
+        flash('A verification code has been sent to your Gmail. Enter it below to finish registration.', 'success')
+        return redirect(url_for('auth.verify_email', email=email))
+
     return render_template('auth/register.html')
+
+
+@auth_bp.route('/verify-email', methods=['GET', 'POST'])
+def verify_email():
+    """
+    Step 2: verify six-digit OTP and create the user with is_verified=1.
+    """
+    if current_user.is_authenticated:
+        return redirect(url_for('views.dashboard'))
+
+    email = (
+        request.values.get('email')
+        or session.get('pending_verify_email')
+        or ''
+    ).strip().lower()
+
+    if not email:
+        flash('Start registration again to receive a verification code.', 'error')
+        return redirect(url_for('auth.register'))
+
+    pending = get_active_pending_by_email(email)
+    cfg = _otp_config()
+    masked = _mask_email(email)
+
+    if request.method == 'GET':
+        if not pending:
+            flash('No pending verification found for this email. Please register again.', 'error')
+            return redirect(url_for('auth.register'))
+        expires_at = _parse_utc(pending.get('expires_at'))
+        last_sent = _parse_utc(pending.get('last_sent_at'))
+        now = _utc_now()
+        seconds_left = max(0, int((expires_at - now).total_seconds())) if expires_at else 0
+        cooldown_left = 0
+        if last_sent:
+            elapsed = int((now - last_sent).total_seconds())
+            cooldown_left = max(0, cfg['resend_cooldown'] - elapsed)
+        return render_template(
+            'auth/verify_email.html',
+            email=email,
+            masked_email=masked,
+            expires_seconds=seconds_left,
+            resend_cooldown=cooldown_left,
+            max_resends=cfg['max_resends'],
+            resend_count=int(pending.get('resend_count') or 0),
+        )
+
+    # POST — verify OTP
+    if not pending:
+        flash('No pending verification found. Please register again.', 'error')
+        return redirect(url_for('auth.register'))
+
+    otp_digits = ''.join(
+        (request.form.get(f'otp_{i}', '') or '') for i in range(6)
+    ).strip()
+    if not otp_digits:
+        otp_digits = (request.form.get('otp') or '').strip()
+
+    if not re.fullmatch(r'\d{6}', otp_digits):
+        flash('Enter the 6-digit code from your email.', 'error')
+        return redirect(url_for('auth.verify_email', email=email))
+
+    expires_at = _parse_utc(pending.get('expires_at'))
+    if not expires_at or _utc_now() > expires_at:
+        flash('This verification code has expired. Request a new one.', 'error')
+        return redirect(url_for('auth.verify_email', email=email))
+
+    attempts = int(pending.get('attempt_count') or 0)
+    if attempts >= cfg['max_attempts']:
+        flash('Too many incorrect attempts. Request a new code or register again.', 'error')
+        return redirect(url_for('auth.verify_email', email=email))
+
+    if hash_otp(otp_digits) != pending.get('otp_hash'):
+        new_count = increment_pending_attempt(pending['id'])
+        remaining = max(0, cfg['max_attempts'] - new_count)
+        if remaining <= 0:
+            flash('Too many incorrect attempts. Request a new code or register again.', 'error')
+        else:
+            flash(f'Invalid verification code. {remaining} attempt(s) remaining.', 'error')
+        return redirect(url_for('auth.verify_email', email=email))
+
+    # Final duplicate check before insert (race-safe)
+    if get_user_by_username(pending['username']) or get_user_by_email(pending['email']):
+        mark_pending_used(pending['id'])
+        flash('This name or email is already registered. Please sign in.', 'error')
+        return redirect(url_for('auth.login'))
+
+    result = create_user(
+        username=pending['username'],
+        email=pending['email'],
+        full_name=pending['full_name'],
+        role='user',
+        is_verified=1,
+        password_hash=pending['password_hash'],
+    )
+
+    if isinstance(result, tuple):
+        mark_pending_used(pending['id'])
+        flash(result[1] if result[1] else 'Could not create account. Please try again.', 'error')
+        return redirect(url_for('auth.register'))
+
+    mark_pending_used(pending['id'])
+    session.pop('pending_verify_email', None)
+    logger.info('User verified and created: %s (%s)', pending['full_name'], pending['email'])
+    flash('Email verified successfully! Your account is ready. Please sign in.', 'success')
+    return redirect(url_for('auth.login'))
+
+
+@auth_bp.route('/resend-otp', methods=['POST'])
+def resend_otp():
+    """Resend registration OTP with cooldown and max-resend limits."""
+    if current_user.is_authenticated:
+        return redirect(url_for('views.dashboard'))
+
+    email = (request.form.get('email') or session.get('pending_verify_email') or '').strip().lower()
+    if not email:
+        flash('Start registration again to receive a verification code.', 'error')
+        return redirect(url_for('auth.register'))
+
+    pending = get_active_pending_by_email(email)
+    if not pending:
+        flash('No pending verification found. Please register again.', 'error')
+        return redirect(url_for('auth.register'))
+
+    cfg = _otp_config()
+    resend_count = int(pending.get('resend_count') or 0)
+    if resend_count >= cfg['max_resends']:
+        flash('Maximum resend limit reached. Please register again later.', 'error')
+        return redirect(url_for('auth.verify_email', email=email))
+
+    last_sent = _parse_utc(pending.get('last_sent_at'))
+    if last_sent:
+        elapsed = int((_utc_now() - last_sent).total_seconds())
+        if elapsed < cfg['resend_cooldown']:
+            wait = cfg['resend_cooldown'] - elapsed
+            flash(f'Please wait {wait} second(s) before requesting a new code.', 'error')
+            return redirect(url_for('auth.verify_email', email=email))
+
+    otp = _generate_otp()
+    otp_hash_value = hash_otp(otp)
+    expires_at = _utc_now() + timedelta(minutes=cfg['expires_minutes'])
+    new_resend = resend_count + 1
+
+    updated = update_pending_resend(pending['id'], otp_hash_value, expires_at, new_resend)
+    if not updated:
+        flash('Could not refresh the verification code. Please register again.', 'error')
+        return redirect(url_for('auth.register'))
+
+    sent = email_service.send_registration_otp(email, pending['full_name'], otp)
+    del otp
+
+    if not sent:
+        flash(
+            'We could not send the verification email right now. Please try again shortly.',
+            'error',
+        )
+        return redirect(url_for('auth.verify_email', email=email))
+
+    flash('A new verification code has been sent to your Gmail.', 'success')
+    return redirect(url_for('auth.verify_email', email=email))
 
 
 @auth_bp.route('/logout')

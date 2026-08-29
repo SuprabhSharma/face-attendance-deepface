@@ -291,7 +291,7 @@
         </div>
 
         <button type="submit" class="fa-submit" id="submitBtn">
-          <span id="btnLabel">Create Account</span>
+          <span id="btnLabel">Continue to verification</span>
           <span class="spinner-border spinner-border-sm d-none" id="btnSpinner"></span>
         </button>
 
@@ -353,7 +353,7 @@ document.getElementById('registerForm').addEventListener('submit', function(e) {
   if (pw.length < 8) { e.preventDefault(); return alert('Password must be at least 8 characters.'); }
   if (pw !== cpw)    { e.preventDefault(); return alert('Passwords do not match.'); }
 
-  document.getElementById('btnLabel').textContent  = 'Creating…';
+  document.getElementById('btnLabel').textContent  = 'Sending code…';
   document.getElementById('btnSpinner').classList.remove('d-none');
   document.getElementById('submitBtn').disabled = true;
 });

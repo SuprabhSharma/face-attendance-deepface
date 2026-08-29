@@ -113,10 +113,13 @@ def get_db_connection():
         conn = psycopg2.connect(DATABASE_URL)
         return DBConnectionWrapper(conn, is_postgres=True)
     
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    parent = os.path.dirname(DB_PATH)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
+    conn.execute('PRAGMA busy_timeout = 30000')
     return DBConnectionWrapper(conn, is_postgres=False)
 
 
@@ -263,6 +266,27 @@ def init_db(force=False):
         c.execute('CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs(timestamp)')
 
+        # Pending email OTP verifications (registration hold)
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS pending_email_verifications (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) NOT NULL,
+                full_name VARCHAR(255) NOT NULL,
+                username VARCHAR(100) NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                otp_hash VARCHAR(255) NOT NULL,
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                attempt_count INTEGER DEFAULT 0,
+                resend_count INTEGER DEFAULT 0,
+                last_sent_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                is_used INTEGER DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_pending_email ON pending_email_verifications(email)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_pending_email_active ON pending_email_verifications(email, is_used)')
+
     else:
         # ── SQLite DDL ──
         c.execute('''
@@ -386,6 +410,27 @@ def init_db(force=False):
         c.execute('CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs(timestamp)')
 
+        # Pending email OTP verifications (registration hold)
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS pending_email_verifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL,
+                full_name TEXT NOT NULL,
+                username TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                otp_hash TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                attempt_count INTEGER DEFAULT 0,
+                resend_count INTEGER DEFAULT 0,
+                last_sent_at TEXT NOT NULL,
+                is_used INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_pending_email ON pending_email_verifications(email)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_pending_email_active ON pending_email_verifications(email, is_used)')
+
     # ── Auto-sanitize existing historical after-hours scans to absent ──
     try:
         c.execute("UPDATE attendance SET status = 'absent' WHERE time_in IS NOT NULL AND (time_in < '06:00:00' OR time_in > '17:00:00')")
@@ -403,26 +448,34 @@ def init_db(force=False):
 # USER MANAGEMENT
 # ============================================
 
-def create_user(username, email, password, full_name, role='user'):
-    """Create a new user"""
+def create_user(username, email, password=None, full_name=None, role='user', is_verified=0, password_hash=None):
+    """
+    Create a new user.
+    Pass either plaintext `password` (hashed once here) or a pre-computed `password_hash`
+    to avoid double-hashing when promoting a pending registration.
+    """
     try:
         conn = get_db_connection()
         c = conn.cursor()
-        password_hash = hash_password(password)
+        if password_hash is None:
+            if not password:
+                conn.close()
+                return None, 'Password is required'
+            password_hash = hash_password(password)
 
         if conn.is_postgres:
             c.execute('''
-                INSERT INTO users (username, email, password_hash, full_name, role)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO users (username, email, password_hash, full_name, role, is_verified)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id
-            ''', (username, email, password_hash, full_name, role))
+            ''', (username, email, password_hash, full_name, role, int(is_verified)))
             res = c.fetchone()
             user_id = res['id'] if res else None
         else:
             c.execute('''
-                INSERT INTO users (username, email, password_hash, full_name, role)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (username, email, password_hash, full_name, role))
+                INSERT INTO users (username, email, password_hash, full_name, role, is_verified)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (username, email, password_hash, full_name, role, int(is_verified)))
             user_id = c.lastrowid
 
         conn.commit()
@@ -465,6 +518,163 @@ def get_user_by_id(user_id):
     user = c.fetchone()
     conn.close()
     return user
+
+
+# ============================================
+# PENDING EMAIL OTP VERIFICATION
+# ============================================
+
+def _utc_now():
+    return datetime.now(timezone.utc)
+
+
+def _to_utc_iso(dt):
+    if dt is None:
+        return None
+    if isinstance(dt, str):
+        return dt
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+
+
+def _parse_utc(value):
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+    # SQLite stores as text
+    for fmt in ('%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S'):
+        try:
+            return datetime.strptime(str(value)[:26], fmt).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    return None
+
+
+def hash_otp(otp: str) -> str:
+    """Hash a six-digit OTP using the same PBKDF2 helper (never store plaintext OTP)."""
+    return hash_password(str(otp).strip())
+
+
+def create_or_replace_pending_verification(email, full_name, username, password_hash, otp_hash, expires_at, resend_count=0):
+    """
+    Upsert a pending registration row for email.
+    Any previous unused row for this email is marked used so old OTPs become invalid.
+    Safe under concurrent Gunicorn workers (DB is the source of truth).
+    """
+    email = email.strip().lower()
+    now = _utc_now()
+    expires_s = _to_utc_iso(expires_at)
+    now_s = _to_utc_iso(now)
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        # Invalidate any previous active pending rows for this email
+        c.execute('''
+            UPDATE pending_email_verifications
+            SET is_used = 1, updated_at = ?
+            WHERE email = ? AND is_used = 0
+        ''', (now_s, email))
+
+        if conn.is_postgres:
+            c.execute('''
+                INSERT INTO pending_email_verifications
+                    (email, full_name, username, password_hash, otp_hash, expires_at,
+                     attempt_count, resend_count, last_sent_at, is_used, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, 0, %s, %s, 0, %s, %s)
+                RETURNING id
+            ''', (email, full_name, username, password_hash, otp_hash, expires_s,
+                  int(resend_count), now_s, now_s, now_s))
+            row = c.fetchone()
+            pending_id = row['id'] if row else None
+        else:
+            c.execute('''
+                INSERT INTO pending_email_verifications
+                    (email, full_name, username, password_hash, otp_hash, expires_at,
+                     attempt_count, resend_count, last_sent_at, is_used, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, 0, ?, ?)
+            ''', (email, full_name, username, password_hash, otp_hash, expires_s,
+                  int(resend_count), now_s, now_s, now_s))
+            pending_id = c.lastrowid
+
+        conn.commit()
+        return pending_id
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def get_active_pending_by_email(email):
+    """Return the latest unused pending verification for email, or None."""
+    email = (email or '').strip().lower()
+    if not email:
+        return None
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute('''
+        SELECT * FROM pending_email_verifications
+        WHERE email = ? AND is_used = 0
+        ORDER BY id DESC
+        LIMIT 1
+    ''', (email,))
+    row = c.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def increment_pending_attempt(pending_id):
+    """Atomically increment verification attempt_count. Returns new count."""
+    conn = get_db_connection()
+    c = conn.cursor()
+    now_s = _to_utc_iso(_utc_now())
+    c.execute('''
+        UPDATE pending_email_verifications
+        SET attempt_count = attempt_count + 1, updated_at = ?
+        WHERE id = ? AND is_used = 0
+    ''', (now_s, pending_id))
+    c.execute('SELECT attempt_count FROM pending_email_verifications WHERE id = ?', (pending_id,))
+    row = c.fetchone()
+    conn.commit()
+    conn.close()
+    return int(row['attempt_count']) if row else 0
+
+
+def mark_pending_used(pending_id):
+    """Mark a pending row as used (OTP single-use)."""
+    conn = get_db_connection()
+    c = conn.cursor()
+    now_s = _to_utc_iso(_utc_now())
+    c.execute('''
+        UPDATE pending_email_verifications
+        SET is_used = 1, updated_at = ?
+        WHERE id = ?
+    ''', (now_s, pending_id))
+    conn.commit()
+    conn.close()
+
+
+def update_pending_resend(pending_id, otp_hash, expires_at, resend_count):
+    """Update OTP hash/expiry after a successful resend; resets attempt_count."""
+    conn = get_db_connection()
+    c = conn.cursor()
+    now_s = _to_utc_iso(_utc_now())
+    expires_s = _to_utc_iso(expires_at)
+    c.execute('''
+        UPDATE pending_email_verifications
+        SET otp_hash = ?, expires_at = ?, resend_count = ?, last_sent_at = ?,
+            attempt_count = 0, updated_at = ?
+        WHERE id = ? AND is_used = 0
+    ''', (otp_hash, expires_s, int(resend_count), now_s, now_s, pending_id))
+    conn.commit()
+    affected = c.rowcount
+    conn.close()
+    return affected > 0
 
 
 def delete_user_completely(user_id, admin_id=None):

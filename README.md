@@ -430,6 +430,51 @@ Access the application at `http://127.0.0.1:5000`.
 | `TIMEZONE` | String | `Asia/Kolkata` | Operational timezone for shift boundaries |
 | `SESSION_TIMEOUT_MINUTES` | Integer | `30` | Inactivity session cookie lifetime |
 | `PORT` | Integer | `10000` | Port bound by Gunicorn in container environments |
+| `SMTP_ENABLED` | Boolean | `false` | Enable Gmail SMTP for registration OTP emails |
+| `SMTP_HOST` | String | `smtp.gmail.com` | SMTP server hostname |
+| `SMTP_PORT` | Integer | `587` | SMTP port (587 + STARTTLS recommended) |
+| `SMTP_USERNAME` | String | — | Authenticated Gmail address |
+| `SMTP_PASSWORD` | String | — | **Gmail App Password** (not the account password) |
+| `SMTP_FROM` | String | — | From address (same Gmail or authorized alias) |
+| `SMTP_USE_TLS` | Boolean | `true` | Use STARTTLS |
+| `SMTP_TIMEOUT_SECONDS` | Integer | `10` | SMTP socket timeout |
+| `OTP_EXPIRES_MINUTES` | Integer | `10` | OTP lifetime |
+| `OTP_MAX_ATTEMPTS` | Integer | `5` | Max wrong-code attempts per pending registration |
+| `OTP_RESEND_COOLDOWN_SECONDS` | Integer | `60` | Minimum seconds between resends |
+| `OTP_MAX_RESENDS` | Integer | `3` | Max resends per pending registration |
+
+---
+
+## 📧 Gmail SMTP OTP Registration
+
+New user accounts are created only after a one-time email verification code is confirmed.
+
+### Flow
+1. User submits name, Gmail, and password at `/auth/register`.
+2. The server validates fields and checks for duplicate name/email.
+3. A cryptographically secure **6-digit OTP** is generated, **hashed**, and stored in `pending_email_verifications` (never plaintext OTP or password).
+4. The OTP is emailed via **Gmail SMTP**.
+5. User enters the code at `/auth/verify-email`.
+6. On success the account is created with `is_verified=1` and the pending row is marked used (single-use).
+7. Failed SMTP sends do **not** create an account.
+
+OTP is **not** required for login, face biometric registration (`/api/register-user`), or attendance scanning.
+
+### Gmail App Password setup
+1. Open [Google Account → Security](https://myaccount.google.com/security).
+2. Enable **2-Step Verification**.
+3. Create an **App password** (select Mail / Other).
+4. Copy the 16-character password into `SMTP_PASSWORD` in `.env`.
+5. Set `SMTP_USERNAME` and `SMTP_FROM` to that Gmail address.
+6. Set `SMTP_ENABLED=true`.
+
+### Important limitations
+- Gmail requires 2-Step Verification and an App Password; normal account passwords will not work.
+- Sender must be the authenticated Gmail account or an authorized alias.
+- Gmail applies quotas, spam filtering, and throttling — **delivery is not guaranteed**.
+- Only `@gmail.com` recipients are accepted (existing app policy).
+- SMTP credentials must remain server-side and must never be committed to Git.
+- If SMTP is disabled or sending fails, registration stops with a safe retry message; no user row is inserted.
 
 ---
 
