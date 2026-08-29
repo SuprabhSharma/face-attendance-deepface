@@ -9,7 +9,8 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 logger = logging.getLogger('app')
 
 from app.models.db import (
-    get_user_by_id, get_attendance_by_user, mark_attendance, get_all_users,
+    get_user_by_id, get_attendance_by_user, get_user_attendance_history,
+    mark_attendance, get_all_users,
     get_admin_today_attendance, get_admin_user_attendance_history
 )
 from app.services.email_service import EmailService
@@ -253,51 +254,69 @@ def recognize():
 @api_bp.route('/attendance', methods=['GET'])
 @login_required
 def attendance():
+    """Return the authenticated user's full attendance history.
+
+    Uses get_user_attendance_history() which synthesises absent workdays for
+    every Mon–Sat between the user's registration date and today — identical
+    to the logic used by the admin panel — so both views always agree.
+
+    Optional query params:
+        start_date  YYYY-MM-DD  (defaults to user's registration date)
+        end_date    YYYY-MM-DD  (defaults to today)
+        status      present|late|half_day|absent|pending
+        page        int  (default 1)
+        page_size   int  (default 60)
+    """
     try:
-        records = get_attendance_by_user(current_user.id, limit=50)
-        user_data = get_user_by_id(current_user.id)
-        display_name = user_data.get('full_name') if user_data else current_user.username
+        start_date    = request.args.get('start_date')
+        end_date      = request.args.get('end_date')
+        status_filter = request.args.get('status')
+        page          = request.args.get('page', 1)
+        page_size     = request.args.get('page_size', 60)
 
+        result = get_user_attendance_history(
+            user_id       = current_user.id,
+            start_date    = start_date,
+            end_date      = end_date,
+            status_filter = status_filter,
+            page          = int(page),
+            page_size     = int(page_size),
+        )
+
+        if result is None:
+            return jsonify({'success': False, 'message': 'User not found'}), 404
+
+        # Flatten records into the same shape the templates already expect
         res = []
-        for r in records:
-            time_val = r.get('time_in') or r.get('time')
-            raw_status = r.get('status')
-
-            # Accurate 9-to-5 Corporate Time Window Categorization:
-            if raw_status == 'absent' or not time_val:
-                resolved_status = 'absent'
-            elif time_val < '06:00:00' or time_val > '17:00:00':
-                # Outside office hours (e.g. 11:14 PM) -> ABSENT
-                resolved_status = 'absent'
-            elif raw_status in ('half_day', 'late'):
-                resolved_status = raw_status
-            elif time_val <= '09:15:00':
-                # 06:00 AM - 09:15 AM -> PRESENT (On-Time + 15m Grace)
-                resolved_status = 'present'
-            elif time_val <= '13:00:00':
-                # 09:16 AM - 01:00 PM -> LATE
-                resolved_status = 'late'
-            elif time_val <= '17:00:00':
-                # 01:01 PM - 05:00 PM -> HALF DAY
-                resolved_status = 'half_day'
-            else:
-                resolved_status = 'absent'
-
+        for r in result['records']:
+            time_val = r.get('time_in')
             res.append({
-                'date': r['date'],
-                'name': r.get('full_name') or display_name,
-                'time': time_val,
-                'time_in': time_val,
-                'time_out': r.get('time_out'),
-                'marked_at': f"{r['date']}T{time_val}",
-                'status': resolved_status
+                'date'      : r['date'],
+                'name'      : r.get('full_name') or current_user.username,
+                'time'      : time_val,
+                'time_in'   : time_val,
+                'time_out'  : r.get('time_out'),
+                'marked_at' : f"{r['date']}T{time_val}" if time_val else r['date'],
+                'status'    : r['status'],   # 'present'|'late'|'half_day'|'absent'|'pending'
+                'marked_by' : r.get('marked_by'),
             })
 
-        return jsonify({'success': True, 'data': res})
+        return jsonify({
+            'success'   : True,
+            'data'      : res,
+            'summary'   : result['summary'],
+            'total'     : result['total'],
+            'page'      : result['page'],
+            'pages'     : result['pages'],
+            'start_date': result['start_date'],
+            'end_date'  : result['end_date'],
+        })
 
     except Exception as e:
         logger.error(f"Error retrieving attendance: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
 
 
 @api_bp.route('/users', methods=['GET'])

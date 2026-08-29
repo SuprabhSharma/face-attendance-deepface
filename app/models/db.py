@@ -1011,7 +1011,11 @@ def resolve_attendance_status(raw_status, time_in):
 
 
 def get_attendance_by_user(user_id, limit=50):
-    """Get attendance records for a user with canonical status."""
+    """Get attendance records for a user with canonical status.
+    NOTE: This returns only physical DB rows and is used for legacy/simple
+    lookups. Use get_user_attendance_history() for reports/dashboard to get
+    synthesized absent days consistent with the admin view.
+    """
     conn = get_db_connection()
     c = conn.cursor()
     c.execute('''
@@ -1024,13 +1028,151 @@ def get_attendance_by_user(user_id, limit=50):
     ''', (user_id, limit))
     records = c.fetchall()
     conn.close()
-    
+
     cleaned = []
     for r in records:
         d = dict(r)
         d['status'] = resolve_attendance_status(d.get('status'), d.get('time_in'))
         cleaned.append(d)
     return cleaned
+
+
+def get_user_attendance_history(user_id, start_date=None, end_date=None,
+                                status_filter=None, page=1, page_size=60):
+    """Return a user's full attendance history with synthesized absent workdays.
+
+    This mirrors get_admin_user_attendance_history exactly so that what the user
+    sees in their dashboard/reports is always identical to what the admin sees.
+    Missing workdays (Mon–Sat) between the user's registration date and today
+    are synthesized as 'absent', not omitted.
+    """
+    today = datetime.now(IST).date()
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    # Fetch user to get registration date
+    c.execute('''
+        SELECT id, username, email, full_name, role, status, embedding, created_at
+        FROM users WHERE id = ?
+    ''', (user_id,))
+    user = c.fetchone()
+    if not user:
+        conn.close()
+        return None
+
+    user = dict(user)
+    created_value = user.get('created_at')
+    if hasattr(created_value, 'date'):
+        created_date = created_value.date()
+    else:
+        try:
+            created_date = datetime.strptime(str(created_value)[:10], '%Y-%m-%d').date()
+        except (TypeError, ValueError):
+            created_date = today
+
+    def parse_date(value, fallback):
+        try:
+            return datetime.strptime(value, '%Y-%m-%d').date() if value else fallback
+        except (TypeError, ValueError):
+            return fallback
+
+    start = parse_date(start_date, created_date)
+    end   = min(parse_date(end_date, today), today)
+    if start < created_date:
+        start = created_date
+    if start > end:
+        start = end
+
+    # Fetch all existing physical rows in the date range
+    c.execute('''
+        SELECT a.date, a.time_in, a.time_out, a.status, a.notes,
+               a.marked_by, a.id AS attendance_id
+        FROM attendance a
+        WHERE a.user_id = ? AND a.date BETWEEN ? AND ?
+        ORDER BY a.date DESC
+    ''', (user_id, start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d')))
+    attendance_rows = c.fetchall()
+    conn.close()
+
+    # Index by date for O(1) lookup
+    by_date = {}
+    for row in attendance_rows:
+        d = dict(row)
+        date_text = _format_db_date(d.get('date'))
+        by_date[date_text] = d
+
+    now_dt    = datetime.now(IST)
+    today_text = today.strftime('%Y-%m-%d')
+    now_time   = now_dt.strftime('%H:%M:%S')
+
+    # Walk every calendar day — skip Sunday (weekday == 6)
+    all_records = []
+    cursor_date = start
+    while cursor_date <= end:
+        if cursor_date.weekday() != 6:          # Mon=0 … Sat=5, Sun=6
+            date_text  = cursor_date.strftime('%Y-%m-%d')
+            source     = by_date.get(date_text)
+            raw_status = source.get('status') if source else None
+            time_in    = _format_db_time(source.get('time_in')) if source else None
+            # Use the same resolver as admin — absent for past missed days,
+            # pending for today before shift end
+            status = _attendance_status_for_admin(
+                raw_status, time_in, date_text, today_text, now_time
+            )
+            all_records.append({
+                'attendance_id': source.get('attendance_id') if source else None,
+                'user_id'      : user_id,
+                'date'         : date_text,
+                'time_in'      : time_in,
+                'time_out'     : _format_db_time(source.get('time_out')) if source else None,
+                'status'       : status,
+                'raw_status'   : raw_status,
+                'notes'        : source.get('notes') if source else None,
+                'marked_by'    : source.get('marked_by') if source else 'auto_absent',
+                'full_name'    : user.get('full_name') or user.get('username'),
+                'username'     : user.get('username'),
+                'email'        : user.get('email'),
+            })
+        cursor_date += timedelta(days=1)
+
+    # Summary counts (computed before optional status filter)
+    summary = {'present': 0, 'late': 0, 'half_day': 0, 'absent': 0, 'pending': 0}
+    for record in all_records:
+        summary[record['status']] = summary.get(record['status'], 0) + 1
+
+    if status_filter and status_filter in summary:
+        all_records = [r for r in all_records if r['status'] == status_filter]
+
+    try:
+        page = max(1, int(page))
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        page_size = min(200, max(10, int(page_size)))
+    except (TypeError, ValueError):
+        page_size = 60
+
+    total       = len(all_records)
+    start_index = (page - 1) * page_size
+    return {
+        'user': {
+            'id'         : user['id'],
+            'username'   : user['username'],
+            'full_name'  : user.get('full_name') or user.get('username'),
+            'email'      : user.get('email'),
+            'is_enrolled': bool(user.get('embedding')),
+        },
+        'records'   : all_records[start_index:start_index + page_size],
+        'summary'   : summary,
+        'total'     : total,
+        'page'      : page,
+        'page_size' : page_size,
+        'pages'     : max(1, (total + page_size - 1) // page_size),
+        'start_date': start.strftime('%Y-%m-%d'),
+        'end_date'  : end.strftime('%Y-%m-%d'),
+    }
+
+
 
 
 def get_attendance_records(start_date=None, end_date=None):
