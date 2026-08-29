@@ -25,19 +25,25 @@ def dashboard():
 @views_bp.route('/register')
 @login_required
 def register():
+    from flask import flash
     if current_user.role == 'admin':
-        from flask import flash
         flash('System Administrators are exempt from attendance and face registration.', 'info')
         return redirect(url_for('views.admin_dashboard'))
+    if getattr(current_user, 'is_enrolled', False):
+        flash('Your face biometrics are already registered and active! You can mark attendance directly.', 'info')
+        return redirect(url_for('views.dashboard'))
     return render_template('register.html')
 
 @views_bp.route('/camera')
 @login_required
 def camera():
+    from flask import flash
     if current_user.role == 'admin':
-        from flask import flash
         flash('System Administrators are exempt from attendance tracking.', 'info')
         return redirect(url_for('views.admin_dashboard'))
+    if not getattr(current_user, 'is_enrolled', False):
+        flash('Action Required: Please complete your one-time face registration before marking attendance.', 'warning')
+        return redirect(url_for('views.register'))
     return render_template('camera.html')
 
 @views_bp.route('/report')

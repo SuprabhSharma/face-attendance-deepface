@@ -22,6 +22,16 @@
                     </a>
                 </li>
 
+                {% if not current_user.is_enrolled %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'views.register' %}active bg-warning text-dark fw-bold rounded{% else %}text-warning{% endif %} d-flex align-items-center" href="{{ url_for('views.register') }}">
+                        <i class="bi bi-camera-fill me-2"></i>
+                        <span>Register Face</span>
+                        <span class="badge bg-warning text-dark ms-auto" style="font-size:0.6rem;">1-Time Setup</span>
+                    </a>
+                </li>
+                {% endif %}
+
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint == 'views.camera' %}active bg-primary rounded{% endif %}" href="{{ url_for('views.camera') }}">
                         <i class="bi bi-camera-video me-2"></i>

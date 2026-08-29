@@ -38,8 +38,8 @@ logger = logging.getLogger('auth')
 
 
 class User:
-    """User object for Flask-Login with full attributes including profile photo"""
-    def __init__(self, user_id, username, email, full_name=None, profile_picture=None, role='user', is_active=True):
+    """User object for Flask-Login with full attributes including profile photo and biometric enrollment state"""
+    def __init__(self, user_id, username, email, full_name=None, profile_picture=None, role='user', is_active=True, is_enrolled=False):
         self.id = user_id
         self.username = username
         self.email = email
@@ -47,6 +47,7 @@ class User:
         self.profile_picture = profile_picture
         self.role = role
         self.is_active = is_active
+        self.is_enrolled = bool(is_enrolled)
         self.is_authenticated = True
     
     def get_id(self):
@@ -133,7 +134,8 @@ def _handle_login(login_mode='user'):
                 email=user_data['email'],
                 full_name=user_data.get('full_name'),
                 profile_picture=user_data.get('profile_picture'),
-                role=user_data.get('role', 'user')
+                role=user_data.get('role', 'user'),
+                is_enrolled=bool(user_data.get('embedding'))
             )
 
             login_user(user, remember=remember)

@@ -45,7 +45,8 @@ def create_app():
                 email=user_data['email'],
                 full_name=user_data.get('full_name'),
                 profile_picture=user_data.get('profile_picture'),
-                role=user_data.get('role', 'user')
+                role=user_data.get('role', 'user'),
+                is_enrolled=bool(user_data.get('embedding'))
             )
         return None
 
