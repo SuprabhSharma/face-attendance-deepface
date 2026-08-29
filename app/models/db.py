@@ -108,11 +108,30 @@ class DBCursorWrapper:
 
 
 def get_db_connection():
-    """Get database connection (PostgreSQL if DATABASE_URL exists, otherwise SQLite)."""
-    if IS_POSTGRES and DATABASE_URL:
-        conn = psycopg2.connect(DATABASE_URL)
-        return DBConnectionWrapper(conn, is_postgres=True)
+    """Get database connection with automatic fallback.
     
+    If DATABASE_URL is configured (e.g. AWS RDS PostgreSQL), it connects with a 3s timeout.
+    If RDS is stopped, offline, or unreachable, it automatically and gracefully falls back
+    to the local SQLite database so the project never stops working.
+    """
+    global IS_POSTGRES
+    if IS_POSTGRES and DATABASE_URL:
+        try:
+            conn = psycopg2.connect(DATABASE_URL, connect_timeout=3)
+            return DBConnectionWrapper(conn, is_postgres=True)
+        except Exception as pg_err:
+            import logging
+            logging.warning(
+                f"[DATABASE AUTO-FALLBACK] PostgreSQL/RDS is unreachable ({pg_err}). "
+                f"Automatically switching to local SQLite ({DB_PATH}) to keep the application running."
+            )
+            IS_POSTGRES = False
+            # Ensure SQLite tables exist after fallback
+            try:
+                init_db(force=True)
+            except Exception:
+                pass
+
     parent = os.path.dirname(DB_PATH)
     if parent:
         os.makedirs(parent, exist_ok=True)
