@@ -17,6 +17,13 @@
 
         <!-- Navbar Right: User & Actions -->
         <div class="d-flex align-items-center gap-3">
+            <!-- Help Button (industry standard: top-right navbar, like GitHub / Notion / Jira) -->
+            <button type="button"
+                    class="btn btn-light btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center border shadow-sm"
+                    data-bs-toggle="modal" data-bs-target="#helpModal"
+                    style="width:36px;height:36px;" title="Help & Guide">
+                <i class="bi bi-question-lg text-secondary" style="font-size:1rem;"></i>
+            </button>
             <!-- System Time -->
             <div class="text-end navbar-time" style="font-size: 0.85rem;">
                 <div class="text-dark fw-semibold" id="currentTime">--:--:--</div>

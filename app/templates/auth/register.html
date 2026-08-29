@@ -358,4 +358,12 @@ document.getElementById('registerForm').addEventListener('submit', function(e) {
   document.getElementById('submitBtn').disabled = true;
 });
 </script>
+<!-- Floating Help Button -->
+<button type="button"
+        class="btn btn-primary rounded-circle shadow-lg d-flex align-items-center justify-content-center"
+        data-bs-toggle="modal" data-bs-target="#helpModal"
+        title="Help & Quick Guide"
+        style="position:fixed;bottom:1.5rem;right:1.5rem;width:52px;height:52px;z-index:1050;font-size:1.3rem;">
+  <i class="bi bi-question-lg"></i>
+</button>
 {% endblock %}

@@ -253,5 +253,205 @@
     </script>
 
     {% block scripts %}{% endblock %}
+
+<!-- ── Context-Aware Help Modal ── -->
+<div class="modal fade" id="helpModal" tabindex="-1" aria-labelledby="helpModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:430px;">
+    <div class="modal-content border-0 rounded-4 shadow-lg overflow-hidden">
+
+      <!-- Header (icon + title injected by JS) -->
+      <div id="helpHeader" class="modal-header border-0" style="padding:1.2rem 1.4rem 1rem;">
+        <div class="d-flex align-items-center gap-3">
+          <div id="helpIcon" class="rounded-3 d-flex align-items-center justify-content-center text-white" style="width:42px;height:42px;flex-shrink:0;"></div>
+          <div>
+            <h6 class="modal-title text-white fw-bold mb-0 lh-sm" id="helpModalLabel" style="font-size:1rem;"></h6>
+            <small class="text-white text-opacity-75" id="helpSubtitle" style="font-size:.78rem;"></small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <!-- Body (steps injected by JS) -->
+      <div class="modal-body px-4 py-3" id="helpBody"></div>
+
+      <!-- Footer -->
+      <div class="modal-footer border-0 py-2 px-4 bg-light d-flex justify-content-between align-items-center">
+        <small class="text-muted" style="font-size:.78rem;"><i class="bi bi-shield-check me-1 text-success"></i>FaceAttend — Biometric Attendance</small>
+        <button type="button" id="helpNextBtn" class="btn btn-sm rounded-pill px-3 fw-semibold" data-bs-dismiss="modal"></button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ── Page context map ─────────────────────────────────────────────────────
+  // Each entry: { bg, icon, title, subtitle, steps[], nextLabel, nextBtnClass }
+  const PAGES = {
+    '/auth/login': {
+      bg: 'linear-gradient(135deg,#667eea,#764ba2)',
+      icon: 'bi-box-arrow-in-right',
+      title: 'How to Sign In',
+      subtitle: 'You are on the Login page',
+      steps: [
+        '📝 Enter the <strong>Full Name</strong> you registered with.',
+        '🔑 Enter your <strong>Password</strong>.',
+        '✅ Click <strong>Sign In</strong>.',
+        '👤 No account yet? Click <strong>Create account</strong> below the form.'
+      ],
+      nextLabel: 'Got it — Sign In',
+      nextBtnClass: 'btn-primary'
+    },
+    '/auth/admin-login': {
+      bg: 'linear-gradient(135deg,#1e3a5f,#2563eb)',
+      icon: 'bi-shield-lock-fill',
+      title: 'Admin Login',
+      subtitle: 'You are on the Admin portal',
+      steps: [
+        '🛡️ Enter the <strong>Admin username</strong> and <strong>Password</strong>.',
+        '✅ Click <strong>Sign In</strong>.',
+        '⚠️ Only accounts with the <strong>Admin</strong> role can enter here.'
+      ],
+      nextLabel: 'Got it',
+      nextBtnClass: 'btn-primary'
+    },
+    '/auth/register': {
+      bg: 'linear-gradient(135deg,#059669,#10b981)',
+      icon: 'bi-person-plus-fill',
+      title: 'Create Your Account',
+      subtitle: 'Step 1 of 2 — Fill the form',
+      steps: [
+        '✍️ Enter your <strong>Full Name</strong> (2–50 characters).',
+        '📧 Enter your <strong>Gmail address</strong> (@gmail.com only).',
+        '🔑 Choose a <strong>Password</strong> — min 8 chars with letters &amp; numbers.',
+        '▶️ Click <strong>Create Account</strong> → a 6-digit code will be emailed to you.'
+      ],
+      nextLabel: 'Got it — Fill the form',
+      nextBtnClass: 'btn-success'
+    },
+    '/auth/verify-email': {
+      bg: 'linear-gradient(135deg,#d97706,#f59e0b)',
+      icon: 'bi-envelope-check-fill',
+      title: 'Verify Your Email',
+      subtitle: 'Step 2 of 2 — Enter the OTP',
+      steps: [
+        '📬 Open your <strong>Gmail inbox</strong> — look for an email from FaceAttend.',
+        '🔢 Type the <strong>6-digit code</strong> in the boxes on this page.',
+        '⏱️ Code expires in <strong>10 minutes</strong>.',
+        '🔁 Didn\'t get it? Click <strong>Resend Code</strong> (up to 3 times).'
+      ],
+      nextLabel: 'Got it — Check my Gmail',
+      nextBtnClass: 'btn-warning text-dark'
+    },
+    '/dashboard': {
+      bg: 'linear-gradient(135deg,#2563eb,#6366f1)',
+      icon: 'bi-speedometer2',
+      title: 'You\'re in! What\'s next?',
+      subtitle: 'Dashboard — Your home screen',
+      steps: [
+        '👤 First time? Go to <strong>My Profile</strong> → <strong>Enroll Face</strong> (required once).',
+        '📷 Every day: click <strong>Mark Attendance</strong> in the sidebar.',
+        '📊 View your history under <strong>Reports</strong>.'
+      ],
+      nextLabel: 'Got it',
+      nextBtnClass: 'btn-primary'
+    },
+    '/camera': {
+      bg: 'linear-gradient(135deg,#0f766e,#14b8a6)',
+      icon: 'bi-camera-video-fill',
+      title: 'Mark Your Attendance',
+      subtitle: 'You are on the Camera page',
+      steps: [
+        '🌐 Click <strong>Allow</strong> when the browser asks for camera access.',
+        '😐 Look <strong>straight at the camera</strong> in good lighting.',
+        '⚡ Your face is recognised automatically — no button to press.',
+        '✅ A message confirms <strong>Check-In</strong> or <strong>Check-Out</strong>.'
+      ],
+      nextLabel: 'Got it — Start Camera',
+      nextBtnClass: 'btn-success'
+    },
+    '/auth/profile': {
+      bg: 'linear-gradient(135deg,#7c3aed,#a855f7)',
+      icon: 'bi-person-badge-fill',
+      title: 'Profile & Face Enrollment',
+      subtitle: 'You are on the Profile page',
+      steps: [
+        '📸 Scroll to <strong>Enroll Face</strong> and click the button.',
+        '🌐 Allow camera access when prompted.',
+        '😐 Look straight — face is captured automatically.',
+        '✅ Done! You only need to do this <strong>once</strong>. Re-enroll if recognition fails.'
+      ],
+      nextLabel: 'Got it — Enroll now',
+      nextBtnClass: 'btn-primary'
+    },
+    '/report': {
+      bg: 'linear-gradient(135deg,#0369a1,#0ea5e9)',
+      icon: 'bi-bar-chart-fill',
+      title: 'Your Attendance Reports',
+      subtitle: 'You are on the Reports page',
+      steps: [
+        '📅 View your <strong>daily attendance history</strong> here.',
+        '🔍 Filter by <strong>date range</strong> or <strong>month</strong>.',
+        '📥 Download as <strong>CSV / PDF</strong> if needed.'
+      ],
+      nextLabel: 'Got it',
+      nextBtnClass: 'btn-primary'
+    }
+  };
+
+  // Admin pages fallback
+  const ADMIN_HELP = {
+    bg: 'linear-gradient(135deg,#1e3a5f,#2563eb)',
+    icon: 'bi-shield-fill-check',
+    title: 'Admin Panel',
+    subtitle: 'Manage users & attendance',
+    steps: [
+      '👥 <strong>User Management</strong> — add, disable, or remove employee accounts.',
+      '📊 <strong>Admin Dashboard</strong> — live attendance overview for all employees.',
+      '📋 Employees must enroll their face from their own profile to mark attendance.'
+    ],
+    nextLabel: 'Got it',
+    nextBtnClass: 'btn-primary'
+  };
+
+  function getHelp() {
+    const path = window.location.pathname.replace(/\/$/, '') || '/dashboard';
+    if (path.startsWith('/admin') || path.startsWith('/auth/admin') && path !== '/auth/admin-login') {
+      return ADMIN_HELP;
+    }
+    return PAGES[path] || PAGES['/dashboard'];
+  }
+
+  function buildSteps(steps) {
+    return '<ul class="list-unstyled mb-0" style="font-size:.875rem;">' +
+      steps.map(s =>
+        `<li class="d-flex gap-2 mb-2 lh-sm"><span style="flex-shrink:0;"></span><span>${s}</span></li>`
+      ).join('') +
+      '</ul>';
+  }
+
+  document.getElementById('helpModal').addEventListener('show.bs.modal', function () {
+    const h = getHelp();
+    // Header bg + icon
+    const header = document.getElementById('helpHeader');
+    header.style.background = h.bg;
+    const iconEl = document.getElementById('helpIcon');
+    iconEl.style.background = 'rgba(255,255,255,0.2)';
+    iconEl.innerHTML = `<i class="bi ${h.icon} fs-5"></i>`;
+    document.getElementById('helpModalLabel').textContent = h.title;
+    document.getElementById('helpSubtitle').textContent = h.subtitle;
+    // Steps
+    document.getElementById('helpBody').innerHTML = buildSteps(h.steps);
+    // Next button
+    const btn = document.getElementById('helpNextBtn');
+    btn.textContent = h.nextLabel;
+    btn.className = `btn btn-sm rounded-pill px-3 fw-semibold ${h.nextBtnClass}`;
+  });
+})();
+</script>
+<!-- ── End Context-Aware Help Modal ── -->
+
 </body>
 </html>
+
