@@ -1,6 +1,6 @@
 import sqlite3
 from datetime import datetime, timezone, timedelta
-import json
+_DEFAULT_DB_PATH = '/app/data/attendance_system.db'import json
 import os
 from hashlib import pbkdf2_hmac
 
@@ -14,7 +14,7 @@ if DATABASE_URL.startswith('postgres://'):
 
 IS_POSTGRES = bool(DATABASE_URL)
 
-_DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'attendance_system.db')
+_DEFAULT_DB_PATH = '/app/data/attendance_system.db'
 DB_PATH = os.path.abspath(os.getenv('DB_PATH', _DEFAULT_DB_PATH))
 
 # Optional psycopg2 import for PostgreSQL
