@@ -1,6 +1,6 @@
 import sqlite3
 from datetime import datetime, timezone, timedelta
-_DEFAULT_DB_PATH = '/app/data/attendance_system.db'import json
+import json
 import os
 from hashlib import pbkdf2_hmac
 
