@@ -327,6 +327,25 @@ def init_db(force=False):
         c.execute('CREATE INDEX IF NOT EXISTS idx_pending_email ON pending_email_verifications(email)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_pending_email_active ON pending_email_verifications(email, is_used)')
 
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS password_reset_otps (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                email VARCHAR(255) NOT NULL,
+                otp_hash VARCHAR(255) NOT NULL,
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                attempt_count INTEGER DEFAULT 0,
+                resend_count INTEGER DEFAULT 0,
+                last_sent_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                is_used INTEGER DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_pwd_reset_email ON password_reset_otps(email)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_pwd_reset_active ON password_reset_otps(email, is_used)')
+
+
     else:
         # ── SQLite DDL ──
         c.execute('''
@@ -470,6 +489,26 @@ def init_db(force=False):
         ''')
         c.execute('CREATE INDEX IF NOT EXISTS idx_pending_email ON pending_email_verifications(email)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_pending_email_active ON pending_email_verifications(email, is_used)')
+
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS password_reset_otps (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                email TEXT NOT NULL,
+                otp_hash TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                attempt_count INTEGER DEFAULT 0,
+                resend_count INTEGER DEFAULT 0,
+                last_sent_at TEXT NOT NULL,
+                is_used INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_pwd_reset_email ON password_reset_otps(email)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_pwd_reset_active ON password_reset_otps(email, is_used)')
+
 
     # ── Auto-sanitize existing historical after-hours scans to absent ──
     try:
@@ -715,6 +754,118 @@ def update_pending_resend(pending_id, otp_hash, expires_at, resend_count):
     affected = c.rowcount
     conn.close()
     return affected > 0
+
+
+
+def create_or_replace_password_reset_otp(user_id, email, otp_hash, expires_at, resend_count=0):
+    """Invalidate prior active reset OTPs for email and insert a new one."""
+    email = (email or '').strip().lower()
+    conn = get_db_connection()
+    c = conn.cursor()
+    now_s = _to_utc_iso(_utc_now())
+    expires_s = _to_utc_iso(expires_at)
+    try:
+        c.execute(
+            "UPDATE password_reset_otps SET is_used = 1, updated_at = ? WHERE email = ? AND is_used = 0",
+            (now_s, email),
+        )
+        if IS_POSTGRES:
+            c.execute(
+                """
+                INSERT INTO password_reset_otps
+                    (user_id, email, otp_hash, expires_at, resend_count, last_sent_at, attempt_count, is_used, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
+                RETURNING id
+                """,
+                (user_id, email, otp_hash, expires_s, int(resend_count), now_s, now_s, now_s),
+            )
+            row = c.fetchone()
+            rid = row['id'] if row else None
+        else:
+            c.execute(
+                """
+                INSERT INTO password_reset_otps
+                    (user_id, email, otp_hash, expires_at, resend_count, last_sent_at, attempt_count, is_used, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
+                """,
+                (user_id, email, otp_hash, expires_s, int(resend_count), now_s, now_s, now_s),
+            )
+            rid = c.lastrowid
+        conn.commit()
+        return rid
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def get_active_password_reset_by_email(email):
+    """Latest unused password-reset OTP row for email."""
+    email = (email or '').strip().lower()
+    if not email:
+        return None
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT * FROM password_reset_otps
+        WHERE email = ? AND is_used = 0
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (email,),
+    )
+    row = c.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def increment_password_reset_attempt(reset_id):
+    conn = get_db_connection()
+    c = conn.cursor()
+    now_s = _to_utc_iso(_utc_now())
+    c.execute(
+        "UPDATE password_reset_otps SET attempt_count = attempt_count + 1, updated_at = ? WHERE id = ? AND is_used = 0",
+        (now_s, reset_id),
+    )
+    c.execute("SELECT attempt_count FROM password_reset_otps WHERE id = ?", (reset_id,))
+    row = c.fetchone()
+    conn.commit()
+    conn.close()
+    return int(row['attempt_count']) if row else 0
+
+
+def mark_password_reset_used(reset_id):
+    conn = get_db_connection()
+    c = conn.cursor()
+    now_s = _to_utc_iso(_utc_now())
+    c.execute(
+        "UPDATE password_reset_otps SET is_used = 1, updated_at = ? WHERE id = ?",
+        (now_s, reset_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_password_reset_resend(reset_id, otp_hash, expires_at, resend_count):
+    conn = get_db_connection()
+    c = conn.cursor()
+    now_s = _to_utc_iso(_utc_now())
+    expires_s = _to_utc_iso(expires_at)
+    c.execute(
+        """
+        UPDATE password_reset_otps
+        SET otp_hash = ?, expires_at = ?, resend_count = ?, last_sent_at = ?,
+            attempt_count = 0, updated_at = ?
+        WHERE id = ? AND is_used = 0
+        """,
+        (otp_hash, expires_s, int(resend_count), now_s, now_s, reset_id),
+    )
+    conn.commit()
+    ok = c.rowcount > 0
+    conn.close()
+    return ok
 
 
 def delete_user_completely(user_id, admin_id=None):

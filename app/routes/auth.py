@@ -19,6 +19,7 @@ from app.models.db import (
     get_user_by_email,
     get_user_by_id,
     update_user_profile_picture,
+    update_user_password,
     hash_password,
     hash_otp,
     create_or_replace_pending_verification,
@@ -26,6 +27,11 @@ from app.models.db import (
     increment_pending_attempt,
     mark_pending_used,
     update_pending_resend,
+    create_or_replace_password_reset_otp,
+    get_active_password_reset_by_email,
+    increment_password_reset_attempt,
+    mark_password_reset_used,
+    update_password_reset_resend,
     _utc_now,
     _parse_utc,
 )
@@ -184,6 +190,11 @@ def _otp_config():
 def _generate_otp() -> str:
     """Cryptographically secure six-digit numeric OTP."""
     return f'{secrets.randbelow(1_000_000):06d}'
+
+
+def _generate_reset_otp() -> str:
+    """Cryptographically secure four-digit numeric OTP for password recovery."""
+    return f'{secrets.randbelow(10_000):04d}'
 
 
 def _mask_email(email: str) -> str:
@@ -595,6 +606,265 @@ def change_password():
             return redirect(url_for('auth.change_password'))
     
     return render_template('auth/change_password.html', user=current_user)
+
+
+
+@auth_bp.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    """Step 1: request a 4-digit recovery OTP by Gmail address."""
+    if current_user.is_authenticated:
+        return redirect(url_for('views.dashboard'))
+
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        # Always show the same response (no account enumeration)
+        generic_msg = (
+            'If an account exists for that Gmail address, a 4-digit recovery code '
+            'has been sent. Check your inbox (and Spam).'
+        )
+
+        is_valid, msg = validate_email(email) if email else (False, 'Email required')
+        if not is_valid:
+            flash(msg if email else 'Please enter your Gmail address.', 'error')
+            return redirect(url_for('auth.forgot_password'))
+
+        user = get_user_by_email(email)
+        if user and user.get('status') != 'inactive':
+            cfg = _otp_config()
+            otp = _generate_reset_otp()
+            expires_at = _utc_now() + timedelta(minutes=cfg['expires_minutes'])
+            try:
+                create_or_replace_password_reset_otp(
+                    user_id=user['id'],
+                    email=email,
+                    otp_hash=hash_otp(otp),
+                    expires_at=expires_at,
+                    resend_count=0,
+                )
+                full_name = user.get('full_name') or user.get('username') or 'there'
+                sent = email_service.send_password_reset_otp(email, full_name, otp)
+                if not sent:
+                    logger.error('Password-reset OTP SMTP send failed for %s', email)
+                    flash(
+                        'Could not send the recovery email right now. '
+                        'Check SMTP settings or try again shortly.',
+                        'error',
+                    )
+                    return redirect(url_for('auth.forgot_password'))
+            except Exception:
+                logger.exception('Password-reset OTP create/send failed')
+                flash('Something went wrong. Please try again.', 'error')
+                return redirect(url_for('auth.forgot_password'))
+
+        session['pwd_reset_email'] = email
+        flash(generic_msg, 'success')
+        return redirect(url_for('auth.verify_reset_otp'))
+
+    return render_template('auth/forgot_password.html')
+
+
+@auth_bp.route('/verify-reset-otp', methods=['GET', 'POST'])
+def verify_reset_otp():
+    """Step 2: enter the 4-digit recovery code."""
+    if current_user.is_authenticated:
+        return redirect(url_for('views.dashboard'))
+
+    email = (session.get('pwd_reset_email') or '').strip().lower()
+    if not email:
+        flash('Start password recovery by entering your email first.', 'error')
+        return redirect(url_for('auth.forgot_password'))
+
+    cfg = _otp_config()
+    pending = get_active_password_reset_by_email(email)
+    cooldown_remaining = 0
+    if pending and pending.get('last_sent_at'):
+        last = _parse_utc(pending['last_sent_at'])
+        if last:
+            elapsed = (_utc_now() - last).total_seconds()
+            cooldown_remaining = max(0, int(cfg['resend_cooldown'] - elapsed))
+
+    if request.method == 'POST':
+        otp = ''.join(ch for ch in request.form.get('otp', '') if ch.isdigit())
+        if len(otp) != 4:
+            flash('Enter the 4-digit code from your email.', 'error')
+            return redirect(url_for('auth.verify_reset_otp'))
+
+        pending = get_active_password_reset_by_email(email)
+        if not pending:
+            flash('No active recovery code. Request a new one.', 'error')
+            return redirect(url_for('auth.forgot_password'))
+
+        expires = _parse_utc(pending.get('expires_at'))
+        if not expires or _utc_now() > expires:
+            mark_password_reset_used(pending['id'])
+            flash('This code has expired. Request a new one.', 'error')
+            return redirect(url_for('auth.forgot_password'))
+
+        attempts = int(pending.get('attempt_count') or 0)
+        if attempts >= cfg['max_attempts']:
+            mark_password_reset_used(pending['id'])
+            flash('Too many incorrect attempts. Request a new code.', 'error')
+            return redirect(url_for('auth.forgot_password'))
+
+        if hash_otp(otp) != pending.get('otp_hash'):
+            new_count = increment_password_reset_attempt(pending['id'])
+            left = max(0, cfg['max_attempts'] - new_count)
+            flash(f'Incorrect code. {left} attempt(s) remaining.', 'error')
+            return redirect(url_for('auth.verify_reset_otp'))
+
+        # Success — single-use OTP
+        mark_password_reset_used(pending['id'])
+        session['pwd_reset_user_id'] = int(pending['user_id'])
+        session['pwd_reset_authorized_until'] = (
+            _utc_now() + timedelta(minutes=15)
+        ).isoformat()
+        session.pop('pwd_reset_email', None)
+        flash('Identity verified. You can set a new password or continue without changing it.', 'success')
+        return redirect(url_for('auth.reset_password_options'))
+
+    return render_template(
+        'auth/verify_reset_otp.html',
+        email=email,
+        masked_email=_mask_email(email),
+        expires_minutes=cfg['expires_minutes'],
+        cooldown_remaining=cooldown_remaining,
+        max_resends=cfg['max_resends'],
+        resend_count=int((pending or {}).get('resend_count') or 0),
+    )
+
+
+@auth_bp.route('/resend-reset-otp', methods=['POST'])
+def resend_reset_otp():
+    """Resend password-recovery OTP with cooldown and max-resend limits."""
+    if current_user.is_authenticated:
+        return redirect(url_for('views.dashboard'))
+
+    email = (session.get('pwd_reset_email') or '').strip().lower()
+    if not email:
+        flash('Start password recovery by entering your email first.', 'error')
+        return redirect(url_for('auth.forgot_password'))
+
+    cfg = _otp_config()
+    pending = get_active_password_reset_by_email(email)
+    if not pending:
+        # Re-issue from user record if prior row was consumed/expired
+        user = get_user_by_email(email)
+        if not user or user.get('status') == 'inactive':
+            flash('Unable to resend. Start recovery again.', 'error')
+            return redirect(url_for('auth.forgot_password'))
+        otp = _generate_reset_otp()
+        expires_at = _utc_now() + timedelta(minutes=cfg['expires_minutes'])
+        create_or_replace_password_reset_otp(
+            user_id=user['id'], email=email, otp_hash=hash_otp(otp),
+            expires_at=expires_at, resend_count=0,
+        )
+        sent = email_service.send_password_reset_otp(
+            email, user.get('full_name') or user.get('username') or 'there', otp
+        )
+        if not sent:
+            flash('Could not send email. Try again shortly.', 'error')
+        else:
+            flash('A new recovery code was sent to your Gmail.', 'success')
+        return redirect(url_for('auth.verify_reset_otp'))
+
+    last = _parse_utc(pending.get('last_sent_at'))
+    if last:
+        elapsed = (_utc_now() - last).total_seconds()
+        if elapsed < cfg['resend_cooldown']:
+            wait = int(cfg['resend_cooldown'] - elapsed)
+            flash(f'Please wait {wait}s before requesting another code.', 'error')
+            return redirect(url_for('auth.verify_reset_otp'))
+
+    resend_count = int(pending.get('resend_count') or 0)
+    if resend_count >= cfg['max_resends']:
+        flash('Maximum resends reached. Start recovery again later.', 'error')
+        return redirect(url_for('auth.forgot_password'))
+
+    user = get_user_by_id(pending['user_id'])
+    otp = _generate_reset_otp()
+    expires_at = _utc_now() + timedelta(minutes=cfg['expires_minutes'])
+    update_password_reset_resend(
+        pending['id'], hash_otp(otp), expires_at, resend_count + 1
+    )
+    sent = email_service.send_password_reset_otp(
+        email,
+        (user or {}).get('full_name') or (user or {}).get('username') or 'there',
+        otp,
+    )
+    if not sent:
+        flash('Could not send email. Try again shortly.', 'error')
+    else:
+        flash('A new recovery code was sent to your Gmail.', 'success')
+    return redirect(url_for('auth.verify_reset_otp'))
+
+
+def _password_reset_session_ok():
+    """Return user_id if the post-OTP reset session is still valid."""
+    uid = session.get('pwd_reset_user_id')
+    until = session.get('pwd_reset_authorized_until')
+    if not uid or not until:
+        return None
+    try:
+        exp = _parse_utc(until)
+        if not exp or _utc_now() > exp:
+            session.pop('pwd_reset_user_id', None)
+            session.pop('pwd_reset_authorized_until', None)
+            return None
+        return int(uid)
+    except (TypeError, ValueError):
+        return None
+
+
+@auth_bp.route('/reset-password', methods=['GET', 'POST'])
+def reset_password_options():
+    """Step 3: set a new password or continue without changing it."""
+    if current_user.is_authenticated:
+        return redirect(url_for('views.dashboard'))
+
+    user_id = _password_reset_session_ok()
+    if not user_id:
+        flash('Recovery session expired. Please verify a new code.', 'error')
+        return redirect(url_for('auth.forgot_password'))
+
+    user = get_user_by_id(user_id)
+    if not user:
+        flash('Account not found.', 'error')
+        return redirect(url_for('auth.login'))
+
+    if request.method == 'POST':
+        action = request.form.get('action', 'change')
+        if action == 'skip':
+            session.pop('pwd_reset_user_id', None)
+            session.pop('pwd_reset_authorized_until', None)
+            flash('You can sign in with your existing password.', 'success')
+            return redirect(url_for('auth.login'))
+
+        password = request.form.get('password', '')
+        confirm = request.form.get('confirm_password', '')
+        ok, msg = validate_password(password)
+        if not ok:
+            flash(msg, 'error')
+            return redirect(url_for('auth.reset_password_options'))
+        if password != confirm:
+            flash('Passwords do not match.', 'error')
+            return redirect(url_for('auth.reset_password_options'))
+
+        if update_user_password(user_id, password):
+            session.pop('pwd_reset_user_id', None)
+            session.pop('pwd_reset_authorized_until', None)
+            logger.info('Password reset completed for user_id=%s', user_id)
+            flash('Password updated. Please sign in with your new password.', 'success')
+            return redirect(url_for('auth.login'))
+
+        flash('Could not update password. Try again.', 'error')
+        return redirect(url_for('auth.reset_password_options'))
+
+    return render_template(
+        'auth/reset_password.html',
+        full_name=user.get('full_name') or user.get('username'),
+        email=_mask_email(user.get('email') or ''),
+    )
+
 
 
 def role_required(required_role):

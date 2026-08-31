@@ -445,6 +445,20 @@ Access the application at `http://127.0.0.1:5000`.
 
 ---
 
+
+
+## 🔑 Password recovery (4-digit Gmail OTP)
+
+Industry-style recovery without SMS (SMS is paid; Gmail on the user’s phone is free and near real-time):
+
+1. **Forgot password** → enter registered `@gmail.com` address.
+2. If an account exists, a **4-digit OTP** is emailed (hashed at rest, single-use, expiry + attempt + resend limits — same controls as registration OTP).
+3. User enters the code → identity verified.
+4. User can **set a new password** or **continue without changing** (return to sign-in with the old password).
+5. Responses never confirm whether the email is registered (anti-enumeration).
+
+Requires the same `SMTP_*` settings as registration OTP. Delivery is not guaranteed (spam filters, Gmail limits).
+
 ## 📧 Gmail SMTP OTP Registration
 
 New user accounts are created only after a one-time email verification code is confirmed.

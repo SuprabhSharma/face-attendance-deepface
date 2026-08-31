@@ -74,6 +74,54 @@ class EmailService:
             logger.error('Unexpected error sending registration OTP to %s: %s', email, type(e).__name__)
             return False
 
+
+    def send_password_reset_otp(self, email: str, full_name: str, otp: str) -> bool:
+        """Send a 4-digit password-reset OTP via Gmail SMTP. Never logs the OTP."""
+        if not self._smtp_ready():
+            logger.error('SMTP not configured or disabled; cannot send password-reset OTP')
+            return False
+
+        mins = os.getenv('OTP_EXPIRES_MINUTES', '10')
+        lines = [
+            f'Hello {full_name},',
+            '',
+            'Your FaceAttend password recovery code is:',
+            '',
+            f'    {otp}',
+            '',
+            f'This code expires in {mins} minutes.',
+            'If you did not request a password reset, you can ignore this email. Your password will stay the same.',
+            '',
+            '— FaceAttend',
+            '',
+        ]
+        msg = EmailMessage()
+        msg['Subject'] = 'Your FaceAttend password recovery code'
+        msg['From'] = self.from_addr
+        msg['To'] = email
+        msg.set_content('\n'.join(lines).replace('\\n', '\n'))
+        # real newlines:
+        msg.set_content(chr(10).join(lines))
+
+        try:
+            with smtplib.SMTP(self.host, self.port, timeout=self.timeout) as server:
+                if self.use_tls:
+                    server.starttls()
+                server.login(self.username, self.password)
+                server.send_message(msg)
+            logger.info('Password-reset OTP email accepted by SMTP for %s', email)
+            return True
+        except smtplib.SMTPException as e:
+            logger.error('SMTP error sending password-reset OTP to %s: %s', email, type(e).__name__)
+            return False
+        except OSError as e:
+            logger.error('Network/OS error sending password-reset OTP to %s: %s', email, type(e).__name__)
+            return False
+        except Exception as e:
+            logger.error('Unexpected error sending password-reset OTP to %s: %s', email, type(e).__name__)
+            return False
+
+
     # ── Legacy / unused notification stubs (do not enable accidentally) ──
 
     def send_email(self, *args, **kwargs):
