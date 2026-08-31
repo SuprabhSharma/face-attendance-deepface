@@ -721,7 +721,7 @@ def verify_reset_otp():
         )
         session.modified = True
         session.pop('pwd_reset_email', None)
-        flash('Identity verified. You can set a new password or continue without changing it.', 'success')
+        flash('Identity verified. Set a new password or keep the current one — you will be signed in automatically.', 'success')
         return redirect(url_for('auth.reset_password_options'))
 
     return render_template(
@@ -821,9 +821,39 @@ def _password_reset_session_ok():
         return None
 
 
+def _clear_password_reset_session():
+    session.pop('pwd_reset_user_id', None)
+    session.pop('pwd_reset_authorized_until', None)
+    session.pop('pwd_reset_email', None)
+
+
+def _login_user_after_recovery(user_data):
+    """Sign the recovered account in and send them to the right home page."""
+    user_obj = User(
+        user_id=user_data['id'],
+        username=user_data['username'],
+        email=user_data['email'],
+        full_name=user_data.get('full_name'),
+        profile_picture=user_data.get('profile_picture'),
+        role=user_data.get('role', 'user'),
+        is_enrolled=is_face_enrolled(user_data.get('embedding')),
+    )
+    login_user(user_obj, remember=True)
+    _clear_password_reset_session()
+    session.modified = True
+    display = user_data.get('full_name') or user_data.get('username')
+    logger.info(
+        'Auto-login after password recovery user_id=%s from %s',
+        user_data['id'], request.remote_addr,
+    )
+    if user_obj.role == 'admin':
+        return redirect(url_for('views.admin_dashboard'))
+    return redirect(url_for('views.dashboard'))
+
+
 @auth_bp.route('/reset-password', methods=['GET', 'POST'])
 def reset_password_options():
-    """Step 3: set a new password or continue without changing it."""
+    """Step 3: set a new password or keep the current one, then auto sign-in."""
     if current_user.is_authenticated:
         return redirect(url_for('views.dashboard'))
 
@@ -837,13 +867,18 @@ def reset_password_options():
         flash('Account not found.', 'error')
         return redirect(url_for('auth.login'))
 
+    if user.get('status') == 'inactive':
+        _clear_password_reset_session()
+        flash('Your account has been deactivated. Contact administrator.', 'error')
+        return redirect(url_for('auth.login'))
+
     if request.method == 'POST':
         action = request.form.get('action', 'change')
+
+        # Keep existing password → sign in immediately
         if action == 'skip':
-            session.pop('pwd_reset_user_id', None)
-            session.pop('pwd_reset_authorized_until', None)
-            flash('You can sign in with your existing password.', 'success')
-            return redirect(url_for('auth.login'))
+            flash(f'Welcome back, {user.get("full_name") or user.get("username")}!', 'success')
+            return _login_user_after_recovery(user)
 
         password = request.form.get('password', '')
         confirm = request.form.get('confirm_password', '')
@@ -855,12 +890,13 @@ def reset_password_options():
             flash('Passwords do not match.', 'error')
             return redirect(url_for('auth.reset_password_options'))
 
+        # Persist new password, then sign in as that same account
         if update_user_password(user_id, password):
-            session.pop('pwd_reset_user_id', None)
-            session.pop('pwd_reset_authorized_until', None)
-            logger.info('Password reset completed for user_id=%s', user_id)
-            flash('Password updated. Please sign in with your new password.', 'success')
-            return redirect(url_for('auth.login'))
+            # Reload row so session reflects current DB state
+            user = get_user_by_id(user_id) or user
+            logger.info('Password reset saved for user_id=%s', user_id)
+            flash('Password updated. You are now signed in.', 'success')
+            return _login_user_after_recovery(user)
 
         flash('Could not update password. Try again.', 'error')
         return redirect(url_for('auth.reset_password_options'))
