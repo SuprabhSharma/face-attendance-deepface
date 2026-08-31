@@ -153,6 +153,27 @@ def verify_password(password_hash, password):
     return password_hash == hash_password(password)
 
 
+def is_face_enrolled(embedding) -> bool:
+    """True only when a real face embedding vector is stored.
+
+    Treats NULL, empty string, 'null', '[]', and other placeholders as
+    not enrolled so the Register Face option stays available.
+    """
+    if embedding is None:
+        return False
+    if isinstance(embedding, (list, tuple)):
+        return len(embedding) >= 64
+    s = str(embedding).strip()
+    if not s or s.lower() in ('null', 'none', 'undefined', '[]', '{}'):
+        return False
+    try:
+        data = json.loads(s)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return False
+    return isinstance(data, list) and len(data) >= 64
+
+
+
 _db_is_initialized = False
 
 def init_db(force=False):
@@ -841,6 +862,7 @@ def get_all_users_admin():
             d['created_at'] = d['created_at'].strftime('%Y-%m-%d %H:%M:%S')
         if isinstance(d.get('updated_at'), datetime):
             d['updated_at'] = d['updated_at'].strftime('%Y-%m-%d %H:%M:%S')
+        d['is_enrolled'] = is_face_enrolled(d.get('embedding'))
         cleaned.append(d)
     return cleaned
 
@@ -1179,7 +1201,7 @@ def get_user_attendance_history(user_id, start_date=None, end_date=None,
             'username'   : user['username'],
             'full_name'  : user.get('full_name') or user.get('username'),
             'email'      : user.get('email'),
-            'is_enrolled': bool(user.get('embedding')),
+            'is_enrolled': is_face_enrolled(user.get('embedding')),
         },
         'records'   : all_records[start_index:start_index + page_size],
         'summary'   : summary,
@@ -1311,7 +1333,7 @@ def get_admin_today_attendance(attendance_date=None):
             u.full_name,
             u.role,
             u.status AS user_status,
-            CASE WHEN u.embedding IS NOT NULL AND u.embedding <> '' THEN 1 ELSE 0 END AS is_enrolled,
+            u.embedding AS embedding,
             a.id AS attendance_id,
             a.date AS attendance_date,
             a.time_in,
@@ -1346,7 +1368,7 @@ def get_admin_today_attendance(attendance_date=None):
             'full_name': d.get('full_name') or d.get('username'),
             'email': d.get('email'),
             'role': d.get('role'),
-            'is_enrolled': bool(d.get('is_enrolled')),
+            'is_enrolled': is_face_enrolled(d.get('embedding')),
             'attendance_id': d.get('attendance_id'),
             'date': today_date,
             'time_in': time_in,
@@ -1477,7 +1499,7 @@ def get_admin_user_attendance_history(user_id, start_date=None, end_date=None,
             'username': user['username'],
             'full_name': user.get('full_name') or user.get('username'),
             'email': user.get('email'),
-            'is_enrolled': bool(user.get('embedding')),
+            'is_enrolled': is_face_enrolled(user.get('embedding')),
         },
         'records': all_records[start_index:start_index + page_size],
         'summary': summary,

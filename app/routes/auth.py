@@ -12,6 +12,7 @@ import re
 import secrets
 from datetime import timedelta
 from app.models.db import (
+    is_face_enrolled,
     authenticate_user,
     create_user,
     get_user_by_username,
@@ -135,7 +136,7 @@ def _handle_login(login_mode='user'):
                 full_name=user_data.get('full_name'),
                 profile_picture=user_data.get('profile_picture'),
                 role=user_data.get('role', 'user'),
-                is_enrolled=bool(user_data.get('embedding'))
+                is_enrolled=is_face_enrolled(user_data.get('embedding'))
             )
 
             login_user(user, remember=remember)
@@ -486,7 +487,7 @@ def profile():
 
         admin_stats = {
             'total_users': len(all_users),
-            'enrolled_biometrics': sum(1 for u in all_users if u.get('role') != 'admin' and u.get('embedding')),
+            'enrolled_biometrics': sum(1 for u in all_users if u.get('role') != 'admin' and is_face_enrolled(u.get('embedding'))),
             'active_employees': employees_count,
             'on_duty_count': on_duty_cnt,
             'shift_msg': shift_msg,

@@ -34,7 +34,7 @@ def create_app():
 
     @login_manager.user_loader
     def load_user(user_id):
-        from app.models.db import get_user_by_id
+        from app.models.db import get_user_by_id, is_face_enrolled
         from app.routes.auth import User
 
         user_data = get_user_by_id(int(user_id))
@@ -46,7 +46,7 @@ def create_app():
                 full_name=user_data.get('full_name'),
                 profile_picture=user_data.get('profile_picture'),
                 role=user_data.get('role', 'user'),
-                is_enrolled=bool(user_data.get('embedding'))
+                is_enrolled=is_face_enrolled(user_data.get('embedding'))
             )
         return None
 

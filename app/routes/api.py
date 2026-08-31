@@ -9,7 +9,7 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 logger = logging.getLogger('app')
 
 from app.models.db import (
-    get_user_by_id, get_attendance_by_user, get_user_attendance_history,
+    get_user_by_id, get_attendance_by_user, get_user_attendance_history, is_face_enrolled,
     mark_attendance, get_all_users,
     get_admin_today_attendance, get_admin_user_attendance_history
 )
@@ -87,7 +87,7 @@ def register():
         full_name = user_data.get('full_name') or user_data.get('username')
 
         # ── If face is already saved, treat as success
-        if user_data.get('embedding'):
+        if is_face_enrolled(user_data.get('embedding')):
             return jsonify({
                 'success': True,
                 'already_registered': True,

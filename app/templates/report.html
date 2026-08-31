@@ -385,6 +385,7 @@
     const late    = monthRecs.filter(r => (r.status || '') === 'late').length;
     const halfDay = monthRecs.filter(r => (r.status || '') === 'half_day').length;
     const absent  = monthRecs.filter(r => (r.status || '') === 'absent').length;
+    const pending = monthRecs.filter(r => (r.status || '') === 'pending').length;
 
     // Working days this month so far (Mon–Sat up to today, Sunday off)
     const now = new Date();
@@ -432,7 +433,7 @@
 
     $('tableBody').innerHTML = slice.map(r => {
       const status  = r.status || 'present';
-      const timeIn  = r.status === 'absent' && !r.time_in && !r.time ? '--' : fmtTime(r.time_in || r.time);
+      const timeIn  = (status === 'absent' || status === 'pending') && !r.time_in && !r.time ? '--' : fmtTime(r.time_in || r.time);
       const timeOut = fmtTime(r.time_out);
 
       // Smart Working Hours Calculation
@@ -442,6 +443,9 @@
       if (status === 'absent') {
         hrs = '<span style="color:#ef4444;font-weight:600;">0h 00m</span>';
         hrsSub = 'Absent';
+      } else if (status === 'pending') {
+        hrs = '<span style="color:#64748b;font-weight:600;">—</span>';
+        hrsSub = 'Awaiting check-in';
       } else if (r.time_in && r.time_out) {
         const [ih, im] = r.time_in.split(':').map(Number);
         const [oh, om] = r.time_out.split(':').map(Number);
@@ -480,6 +484,7 @@
         absent:   `<span class="rp-badge absent"><i class="bi bi-x-circle-fill"></i> Absent</span>`,
         late:     `<span class="rp-badge late"><i class="bi bi-clock-fill"></i> Late</span>`,
         half_day: `<span class="rp-badge half_day"><i class="bi bi-adjust"></i> Half Day</span>`,
+        pending:  `<span class="rp-badge" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;"><i class="bi bi-hourglass-split"></i> Pending</span>`,
       }[status] || `<span class="rp-badge present">${status}</span>`;
 
       return `<tr>
@@ -490,7 +495,7 @@
         <td>
           <div class="rp-time-block">
             <span class="t-in">${timeIn}</span>
-            <span class="t-label">${status === 'absent' ? (r.time_in ? 'After hours' : 'No punch') : 'Check-in'}</span>
+            <span class="t-label">${status === 'pending' ? 'Awaiting' : (status === 'absent' ? (r.time_in ? 'After hours' : 'No punch') : 'Check-in')}</span>
           </div>
         </td>
         <td>${badge}</td>

@@ -363,9 +363,11 @@ function fmtTime12(hhmm) {
     return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${ampm}`;
 }
 function resolveStatus(raw, time_in) {
+    // Trust server-canonical statuses from /api/attendance (includes pending)
+    if (raw === 'pending') return 'pending';
+    if (raw === 'present' || raw === 'late' || raw === 'half_day' || raw === 'absent') return raw;
     if (raw === 'absent' || !time_in) return 'absent';
     if (time_in < '06:00:00' || time_in > '17:00:00') return 'absent';
-    if (raw === 'half_day' || raw === 'late') return raw;
     if (time_in <= '09:15:00') return 'present';
     if (time_in <= '13:00:00') return 'late';
     return 'half_day';
@@ -524,6 +526,8 @@ function renderWeekStrip(records) {
             dotClass = 'wdot-half_day'; icon = '◑';
         } else if (status === 'absent') {
             dotClass = 'wdot-absent'; icon = '✗';
+        } else if (status === 'pending') {
+            dotClass = 'wdot-future'; icon = '…';
         } else {
             dotClass = 'wdot-future'; icon = dayNum;
         }
@@ -555,7 +559,7 @@ function calcStreak(records) {
         const dow = check.getUTCDay();
         if (dow === 0) { check.setUTCDate(check.getUTCDate() - 1); continue; } // Skip Sunday ONLY
         const st = statusMap[ds];
-        if (st && st !== 'absent') { streak++; check.setUTCDate(check.getUTCDate() - 1); }
+        if (st === 'present' || st === 'late' || st === 'half_day') { streak++; check.setUTCDate(check.getUTCDate() - 1); }
         else break;
     }
     return streak;
@@ -569,6 +573,7 @@ const BANNER_CFG = {
     late:     { cls:'banner-late',     icon:'⏰', title: t => `Late — Checked in at ${t}`, sub: 'Late entry recorded. Try to arrive before 9:15 AM.' },
     half_day: { cls:'banner-half_day', icon:'◑',  title: t => `Half Day — Checked in at ${t}`, sub: 'Partial shift. Arrived after 1:00 PM.' },
     absent:   { cls:'banner-absent',   icon:'❌', title: () => 'Absent Today', sub: 'No check-in recorded. Contact admin if this is an error.' },
+    pending:  { cls:'banner-idle',     icon:'⏳', title: () => 'Awaiting Check-in', sub: 'Office is open. Mark attendance from Camera before 5:00 PM.' },
     idle:     { cls:'banner-idle',     icon:'⏳', title: () => 'Not Marked Yet', sub: 'Office is open. Go to camera to mark your attendance.' },
     closed:   { cls:'banner-idle',     icon:'🌙', title: () => 'Office Closed', sub: 'Shift has ended for today. See you tomorrow!' },
 };
@@ -637,7 +642,7 @@ async function loadDashboard() {
             checkinTimestamp = null;
             shiftEndTimestamp = null;
             document.getElementById('liveCounter').textContent = '00:00:00';
-            document.getElementById('liveCounterSub').textContent = status === 'absent' ? 'Marked absent today' : 'Not checked in yet';
+            document.getElementById('liveCounterSub').textContent = status === 'absent' ? 'Marked absent today' : (status === 'pending' ? 'Awaiting check-in' : 'Not checked in yet');
             document.getElementById('checkinDisplay').textContent = '--';
             document.getElementById('liveCounterDot').style.background = '#94a3b8';
         }
@@ -661,6 +666,6 @@ async function loadDashboard() {
 
 // Load immediately, then auto-refresh every 60 seconds
 loadDashboard();
-setInterval(loadDashboard, 60000);
+setInterval(loadDashboard, 15000);
 </script>
 {% endblock %}
