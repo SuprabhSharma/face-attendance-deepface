@@ -198,7 +198,7 @@
             const res = await fetch('/api/register-user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: base64Img }),
+                body: JSON.stringify({ image: base64Img, force: true }),
                 signal: controller.signal
             });
             const data = await readJsonSafely(res);

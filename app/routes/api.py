@@ -86,8 +86,10 @@ def register():
 
         full_name = user_data.get('full_name') or user_data.get('username')
 
-        # ── If face is already saved, treat as success
-        if is_face_enrolled(user_data.get('embedding')):
+        # Optional force re-register (overwrites prior embedding — useful if recognition fails)
+        force = bool(data.get('force'))
+        already = is_face_enrolled(user_data.get('embedding'))
+        if already and not force:
             return jsonify({
                 'success': True,
                 'already_registered': True,
@@ -99,22 +101,14 @@ def register():
             return jsonify({'success': False, 'message': err}), 400
 
         # Check if this face is already claimed by another account
-        is_dup, dup_user_id, dup_name = fc['dup'](embedding)
-        if is_dup:
-            if dup_user_id == current_user.id:
-                # Same person
-                return jsonify({
-                    'success': True,
-                    'already_registered': True,
-                    'message': f'Face already registered for {full_name}. You can now mark attendance!'
-                }), 200
-            else:
-                return jsonify({
-                    'success': False,
-                    'message': f'This face is already registered to another employee account ({dup_name}).'
-                }), 400
+        is_dup, dup_user_id, dup_name = fc['dup'](embedding, exclude_user_id=current_user.id)
+        if is_dup and dup_user_id != current_user.id:
+            return jsonify({
+                'success': False,
+                'message': f'This face is already registered to another employee account ({dup_name}).'
+            }), 400
 
-        # Save embedding via database model helper
+        # Save / overwrite embedding
         try:
             from app.models.db import update_user_embedding
             update_user_embedding(current_user.id, embedding)
@@ -122,9 +116,10 @@ def register():
             logger.error(f"DB error saving embedding: {db_err}")
             return jsonify({'success': False, 'message': 'Database error saving face biometrics. Please retry.'}), 500
 
+        action = 'updated' if already else 'registered'
         return jsonify({
             'success': True,
-            'message': f'Face biometrics registered successfully for {full_name}!'
+            'message': f'Face biometrics {action} successfully for {full_name}!'
         })
 
     except Exception as e:
@@ -161,7 +156,7 @@ def recognize():
         if err:
             return jsonify({'success': False, 'message': err}), 400
 
-        if not any(user.get('embedding') for user in get_all_users()):
+        if not any(is_face_enrolled(user.get('embedding')) for user in get_all_users()):
             return jsonify({
                 'success': True,
                 'found': False,
@@ -242,7 +237,7 @@ def recognize():
             'success': True,
             'found': False,
             'code': 'face_not_recognized',
-            'message': 'Face not recognized. Look directly at the camera in good lighting.'
+            'message': 'Face not recognized. Face good light, look straight at the camera, or re-register your face if this keeps failing.'
         })
 
     except Exception as e:

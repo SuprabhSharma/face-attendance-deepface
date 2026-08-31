@@ -27,7 +27,7 @@
                     <a class="nav-link {% if request.endpoint == 'views.register' %}active bg-warning text-dark fw-bold rounded{% else %}text-warning{% endif %} d-flex align-items-center" href="{{ url_for('views.register') }}">
                         <i class="bi bi-camera-fill me-2"></i>
                         <span>Register Face</span>
-                        <span class="badge bg-warning text-dark ms-auto" style="font-size:0.6rem;">1-Time Setup</span>
+                        <span class="badge bg-warning text-dark ms-auto" style="font-size:0.6rem;">Required</span>
                     </a>
                 </li>
                 {% endif %}
@@ -38,6 +38,14 @@
                         <span>Mark Attendance</span>
                     </a>
                 </li>
+                {% if current_user.is_enrolled %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'views.register' %}active bg-primary rounded{% endif %}" href="{{ url_for('views.register') }}">
+                        <i class="bi bi-arrow-repeat me-2"></i>
+                        <span>Re-register Face</span>
+                    </a>
+                </li>
+                {% endif %}
 
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint == 'views.report' %}active bg-primary rounded{% endif %}" href="{{ url_for('views.report') }}">

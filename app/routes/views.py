@@ -29,10 +29,8 @@ def register():
     if current_user.role == 'admin':
         flash('System Administrators are exempt from attendance and face registration.', 'info')
         return redirect(url_for('views.admin_dashboard'))
-    if getattr(current_user, 'is_enrolled', False):
-        flash('Your face biometrics are already registered and active! You can mark attendance directly.', 'info')
-        return redirect(url_for('views.dashboard'))
-    return render_template('register.html')
+    # Allow re-registration so users can fix a bad/outdated embedding
+    return render_template('register.html', is_reregister=bool(getattr(current_user, 'is_enrolled', False)))
 
 @views_bp.route('/camera')
 @login_required

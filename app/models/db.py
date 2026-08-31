@@ -780,8 +780,10 @@ def authenticate_user(username, password):
 
 
 def update_user_embedding(user_id, embedding_vector):
-    """Update user's face embedding"""
-    embedding_str = json.dumps(embedding_vector.tolist())
+    """Update user's face embedding (stored as JSON float list)."""
+    import numpy as np
+    vec = np.asarray(embedding_vector, dtype=np.float32).reshape(-1)
+    embedding_str = json.dumps(vec.tolist())
     conn = get_db_connection()
     c = conn.cursor()
     c.execute('UPDATE users SET embedding = ? WHERE id = ?', (embedding_str, user_id))
