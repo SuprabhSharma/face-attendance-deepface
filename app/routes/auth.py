@@ -630,6 +630,13 @@ def forgot_password():
             return redirect(url_for('auth.forgot_password'))
 
         user = get_user_by_email(email)
+        # System administrators cannot use self-service password recovery
+        if user and user.get('role') == 'admin':
+            logger.warning(
+                'Password recovery blocked for admin email from %s',
+                request.remote_addr,
+            )
+            user = None
         if user and user.get('status') != 'inactive':
             cfg = _otp_config()
             otp = _generate_reset_otp()
@@ -695,6 +702,12 @@ def verify_reset_otp():
             flash('No active recovery code. Request a new one.', 'error')
             return redirect(url_for('auth.forgot_password'))
 
+        owner = get_user_by_id(pending.get('user_id'))
+        if owner and owner.get('role') == 'admin':
+            mark_password_reset_used(pending['id'])
+            flash('Administrator accounts cannot use password recovery.', 'error')
+            return redirect(url_for('auth.admin_login'))
+
         expires = _parse_utc(pending.get('expires_at'))
         if not expires or _utc_now() > expires:
             mark_password_reset_used(pending['id'])
@@ -751,6 +764,9 @@ def resend_reset_otp():
     if not pending:
         # Re-issue from user record if prior row was consumed/expired
         user = get_user_by_email(email)
+        if user and user.get('role') == 'admin':
+            flash('Administrator accounts cannot use password recovery.', 'error')
+            return redirect(url_for('auth.admin_login'))
         if not user or user.get('status') == 'inactive':
             flash('Unable to resend. Start recovery again.', 'error')
             return redirect(url_for('auth.forgot_password'))
@@ -783,6 +799,10 @@ def resend_reset_otp():
         return redirect(url_for('auth.forgot_password'))
 
     user = get_user_by_id(pending['user_id'])
+    if user and user.get('role') == 'admin':
+        mark_password_reset_used(pending['id'])
+        flash('Administrator accounts cannot use password recovery.', 'error')
+        return redirect(url_for('auth.admin_login'))
     otp = _generate_reset_otp()
     expires_at = _utc_now() + timedelta(minutes=cfg['expires_minutes'])
     update_password_reset_resend(
@@ -866,6 +886,11 @@ def reset_password_options():
     if not user:
         flash('Account not found.', 'error')
         return redirect(url_for('auth.login'))
+
+    if user.get('role') == 'admin':
+        _clear_password_reset_session()
+        flash('Administrator accounts cannot use password recovery.', 'error')
+        return redirect(url_for('auth.admin_login'))
 
     if user.get('status') == 'inactive':
         _clear_password_reset_session()

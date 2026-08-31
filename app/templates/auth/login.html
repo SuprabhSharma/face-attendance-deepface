@@ -279,9 +279,11 @@
                 </div>
 
                 <!-- Submit Button -->
-                                <div class="d-flex justify-content-end mb-3">
+                                {% if not is_admin_login %}
+                <div class="d-flex justify-content-end mb-3">
                     <a href="{{ url_for('auth.forgot_password') }}" class="small text-decoration-none">Forgot password?</a>
                 </div>
+                {% endif %}
                 <button type="submit" class="btn btn-login" id="loginBtn">
                     <span id="loginBtnText">Sign In</span>
                     <span id="loginLoading" style="display: none;">
