@@ -424,7 +424,7 @@ Access the application at `http://127.0.0.1:5000`.
 | `DB_PATH` | String | `attendance_system.db` | Fallback SQLite database file path |
 | `ADMIN_USERNAME` | String | `admin` | Default root administrator username |
 | `ADMIN_EMAIL` | String | `admin@example.com` | Default root administrator email |
-| `ADMIN_PASSWORD` | String | `Admin12345` | Default root administrator password |
+| `ADMIN_PASSWORD` | String | `XXXXXXXXXX` | Default root administrator password |
 | `FACE_RECOGNITION_THRESHOLD` | Float | `12.0` | SFace Euclidean L2 distance cutoff (Lower = Stricter) |
 | `SCHEDULER_ENABLED` | Boolean | `True` | Activates background APScheduler cron workers |
 | `TIMEZONE` | String | `Asia/Kolkata` | Operational timezone for shift boundaries |
