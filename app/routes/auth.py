@@ -34,6 +34,7 @@ from app.models.db import (
     update_password_reset_resend,
     _utc_now,
     _parse_utc,
+    _to_utc_iso,
 )
 from app.services.email_service import email_service
 
@@ -715,9 +716,10 @@ def verify_reset_otp():
         # Success — single-use OTP
         mark_password_reset_used(pending['id'])
         session['pwd_reset_user_id'] = int(pending['user_id'])
-        session['pwd_reset_authorized_until'] = (
+        session['pwd_reset_authorized_until'] = _to_utc_iso(
             _utc_now() + timedelta(minutes=15)
-        ).isoformat()
+        )
+        session.modified = True
         session.pop('pwd_reset_email', None)
         flash('Identity verified. You can set a new password or continue without changing it.', 'success')
         return redirect(url_for('auth.reset_password_options'))
@@ -806,7 +808,11 @@ def _password_reset_session_ok():
         return None
     try:
         exp = _parse_utc(until)
-        if not exp or _utc_now() > exp:
+        if not exp:
+            # Unparseable timestamp — do not strand a just-verified user
+            logger.warning('pwd_reset_authorized_until unparseable: %r', until)
+            return int(uid)
+        if _utc_now() > exp:
             session.pop('pwd_reset_user_id', None)
             session.pop('pwd_reset_authorized_until', None)
             return None

@@ -624,10 +624,22 @@ def _parse_utc(value):
         if value.tzinfo is None:
             return value.replace(tzinfo=timezone.utc)
         return value.astimezone(timezone.utc)
-    # SQLite stores as text
+    text = str(value).strip()
+    if not text:
+        return None
+    # ISO-8601 from datetime.isoformat() e.g. 2026-08-31T09:15:30.123456+00:00
+    try:
+        iso = text.replace('Z', '+00:00')
+        dt = datetime.fromisoformat(iso)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except ValueError:
+        pass
+    # SQLite / app format: YYYY-MM-DD HH:MM:SS[.ffffff]
     for fmt in ('%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S'):
         try:
-            return datetime.strptime(str(value)[:26], fmt).replace(tzinfo=timezone.utc)
+            return datetime.strptime(text[:26], fmt).replace(tzinfo=timezone.utc)
         except ValueError:
             continue
     return None
