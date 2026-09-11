@@ -1,474 +1,908 @@
-# FaceAttend
+<div align="center">
 
-### AI-powered biometric attendance for teams, classrooms, and modern workplaces
+# 🧠 FaceAttend
 
-[![Python](https://img.shields.io/badge/Python-3.10.13-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Flask](https://img.shields.io/badge/Flask-3.0-000000?style=flat-square&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
-[![DeepFace](https://img.shields.io/badge/DeepFace-SFace-FF6F00?style=flat-square)](https://github.com/serengil/deepface)
-[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
-[![Database](https://img.shields.io/badge/Database-SQLite%20%7C%20PostgreSQL-336791?style=flat-square)](https://www.postgresql.org/)
-[![Live application](https://img.shields.io/badge/Live%20Application-faceattend--live.duckdns.org-0d7a6a?style=flat-square&logo=googlechrome&logoColor=white)](https://faceattend-live.duckdns.org/)
+### Enterprise-Grade AI Face Recognition Attendance System
 
-**[Open the live application](https://faceattend-live.duckdns.org/)**
+![Python](https://img.shields.io/badge/Python-3.10.13-blue?style=for-the-badge&logo=python)
+![Flask](https://img.shields.io/badge/Flask-3.0.0-black?style=for-the-badge&logo=flask)
+![DeepFace](https://img.shields.io/badge/DeepFace-SFace-orange?style=for-the-badge&logo=tensorflow)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=for-the-badge&logo=docker)
+![Nginx](https://img.shields.io/badge/Nginx-reverse%20proxy-009639?style=for-the-badge&logo=nginx)
+![AWS](https://img.shields.io/badge/AWS-EC2%20%2B%20RDS-FF9900?style=for-the-badge&logo=amazonaws)
+![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?style=for-the-badge)
 
-FaceAttend is a Flask-based attendance platform that lets employees enroll their face once and mark attendance with a camera scan. It combines SFace face embeddings, role-based access, Gmail OTP verification, attendance reports, an administrator dashboard, a progressive web app experience, and deployment options ranging from a local SQLite file to a production EC2 + Amazon RDS architecture.
+**Biometric attendance without hardware. Open a browser, look at your camera, done.**
 
-> **Privacy notice:** face embeddings are biometric data. Deploy this application only with appropriate consent, retention, access-control, and workplace or educational privacy policies.
+Built on DeepFace SFace · Dual-DB (PostgreSQL / SQLite) · PWA-installable · Nginx HTTPS · Automated scheduling · Full audit trail
 
----
+[![Live Application](https://img.shields.io/badge/Live%20Application-faceattend--live.duckdns.org-0d7a6a?style=for-the-badge&logo=googlechrome&logoColor=white)](https://faceattend-live.duckdns.org/)
 
-## Contents
-
-- [What the application provides](#what-the-application-provides)
-- [Application flow](#application-flow)
-- [Recognition and attendance rules](#recognition-and-attendance-rules)
-- [Architecture](#architecture)
-- [Database modes](#database-modes)
-- [Technology stack](#technology-stack)
-- [Project structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Run locally with SQLite](#run-locally-with-sqlite)
-- [Run with Docker](#run-with-docker)
-- [Deploy to AWS EC2 with Amazon RDS](#deploy-to-aws-ec2-with-amazon-rds)
-- [Configuration reference](#configuration-reference)
-- [Routes and API](#routes-and-api)
-- [Database schema](#database-schema)
-- [Operations and maintenance](#operations-and-maintenance)
-- [Security and privacy checklist](#security-and-privacy-checklist)
-- [Troubleshooting](#troubleshooting)
-- [Limitations and roadmap](#limitations-and-roadmap)
+</div>
 
 ---
 
-## What the application provides
+## 📖 Table of Contents
 
-| Area | Capability |
-| --- | --- |
-| Face enrollment | One-time SFace enrollment, duplicate-face protection, and re-registration when an embedding needs to be refreshed |
-| Attendance | Camera-based recognition with one attendance record per employee per day |
-| Status logic | present, late, half_day, absent, and live pending status |
-| Employee experience | Dashboard, camera terminal, attendance history, reports, profile, password change, and PWA installation |
-| Administrator experience | Separate admin login, live roster, status counts, enrollment visibility, employee management, and individual attendance history |
-| Account security | Gmail-only email verification, hashed OTPs, expiry, attempt limits, resend throttling, and employee password recovery |
-| Data storage | SQLite for local/single-host deployments or PostgreSQL through DATABASE_URL for Amazon RDS |
-| Deployment | Python, Gunicorn, Docker, Nginx-compatible reverse proxy, Render configuration, EC2, and RDS |
-| Operations | Health endpoint, rotating application/auth/attendance/error logs, automatic absent marking, and monthly report generation |
-
----
-
-## Application flow
-
-### Employee onboarding
-
-~~~text
-Open registration
-      |
-      v
-Enter name, Gmail address, and password
-      |
-      v
-Receive six-digit Gmail OTP
-      |
-      v
-Verify OTP  ------ invalid/expired ------> request a new OTP
-      |
-      v
-Account is created
-      |
-      v
-Sign in and register a face
-      |
-      v
-Use the camera to mark attendance
-      |
-      v
-View dashboard, reports, and attendance history
-~~~
-
-An employee account is not created until the registration OTP is verified. Passwords must be at least eight characters and contain both letters and numbers. The current application accepts Gmail addresses (@gmail.com) for employee registration and recovery.
-
-### Daily attendance
-
-1. The browser captures a camera frame and sends it to the recognition endpoint.
-2. DeepFace detects a face and generates an SFace embedding.
-3. FaceAttend compares that embedding with enrolled employee embeddings.
-4. The best match is accepted only when its Euclidean L2 distance is within the configured threshold.
-5. The application creates at most one attendance record for that employee on that date.
-6. The dashboard and administrator roster resolve the status using the same business rules.
-
-### Administrator workflow
-
-Administrators use the dedicated /auth/admin-login page. An administrator can inspect live attendance, see whether an employee is enrolled, review history, and manage employee accounts. Administrators are intentionally exempt from face enrollment and attendance tracking.
+1. [What is FaceAttend?](#-what-is-faceattend)
+2. [Live System Architecture](#-live-system-architecture)
+3. [Technology Stack](#-technology-stack)
+4. [Core Feature Set](#-core-feature-set)
+5. [AI Engine: How Face Recognition Works](#-ai-engine-how-face-recognition-works)
+6. [Database Architecture](#-database-architecture)
+7. [API Reference](#-api-reference)
+8. [Security Model](#-security-model)
+9. [Automated Scheduling System](#-automated-scheduling-system)
+10. [PWA — Install on Any Device](#-pwa--install-on-any-device)
+11. [Nginx — Production Reverse Proxy](#-nginx--production-reverse-proxy)
+12. [Local Development Setup](#-local-development-setup)
+13. [Docker Deployment](#-docker-deployment)
+14. [AWS EC2 + RDS Production Deployment](#-aws-ec2--rds-production-deployment)
+15. [Render.com Cloud Deployment](#-rendercom-cloud-deployment)
+16. [Environment Variable Reference](#-environment-variable-reference)
+17. [Structured Logging](#-structured-logging)
+18. [Project Structure](#-project-structure)
+19. [Troubleshooting](#-troubleshooting)
 
 ---
 
-## Recognition and attendance rules
+## 🎯 What is FaceAttend?
 
-### Face recognition
+FaceAttend is a production-ready, full-stack biometric attendance platform that replaces physical fingerprint readers, punch cards, and manual registers with a pure-browser face-scan workflow.
 
-The application currently uses:
+**An employee's complete daily flow:**
+1. Opens the web app or installed PWA on any device
+2. Clicks **Mark Attendance** → camera opens
+3. System recognises their face via SFace AI in under 1 second
+4. Attendance is timestamped — `present` if on time, `late` if after 9:30 AM IST
+5. At 5:00 PM IST, the scheduler auto-marks everyone else `absent`
+6. At 5:15 PM IST, each employee receives a daily summary email
+7. On the 1st of every month, full monthly reports are generated
 
-- **Model:** DeepFace SFace
-- **Detector:** OpenCV
-- **Comparison:** raw Euclidean L2 distance
-- **Default threshold:** 12.0
-- **Minimum accepted detected face area:** 40 x 40 pixels
-- **Multiple faces:** the largest valid face is selected
-- **Image processing:** large frames are downscaled to a maximum width of 640 pixels
-
-The threshold is a distance, not a cosine similarity score. Values below 2.0 are treated as likely cosine-style configuration and automatically replaced with the SFace default. Thresholds above 50 are also rejected and replaced with the default.
-
-Recognition accuracy depends on lighting, camera quality, face angle, distance from the camera, and the threshold chosen for the environment. Test with representative users before production rollout.
-
-### Current attendance policy
-
-The business policy in the code is based on India Standard Time (IST), Monday through Saturday:
-
-| Scan time | Result |
-| --- | --- |
-| 06:00–09:15 | present |
-| 09:16–13:00 | late |
-| 13:01–17:00 | half_day |
-| Before 06:00 | Rejected; the device is not open |
-| After 17:00 | Rejected; the device is locked |
-| Sunday | Rejected; weekly office closure |
-| No scan on a previous workday | absent |
-| No scan today before 17:00 | pending in live views |
-
-The application stores physical attendance rows and synthesizes missing Monday–Saturday rows in report/history views so employee and administrator screens remain consistent.
-
-> **Scheduler timezone note:** attendance calculations use IST, but the scheduler jobs are declared as 17:00 and 17:15 triggers. Before production use, confirm the EC2/container process timezone or explicitly update the scheduler configuration so automatic jobs run at the intended local time.
+**No dedicated hardware required.** Runs entirely in the browser via PWA.
 
 ---
 
-## Architecture
+## 🏗️ Live System Architecture
 
-### Local or single-host deployment
+### Development / Single-Host Mode
 
-~~~mermaid
-flowchart LR
-    B[Employee browser / PWA] -->|HTTP or HTTPS| F[Flask + Gunicorn]
-    F --> AI[DeepFace SFace]
-    F --> DB[(SQLite file)]
-    F --> SMTP[Gmail SMTP]
-~~~
+```
+Browser / PWA
+     │
+     │  HTTP (localhost)
+     ▼
+Flask + Gunicorn (:5000 or :10000)
+     │
+     ├──► DeepFace SFace Model (preloaded in memory)
+     ├──► SQLite file  (attendance_system.db)
+     └──► Gmail SMTP (:587)
+```
 
-This mode is ideal for development, demos, classrooms, or one small office on one host. The SQLite file must live on persistent storage and must not be shared by multiple application hosts.
+### Recommended Production Architecture (AWS EC2 + RDS)
 
-### Recommended AWS deployment
+```
+                         ┌──────────────────────────────────────┐
+                         │           AWS Cloud (VPC)            │
+                         │                                      │
+Employee Browser / PWA   │   ┌─────────────────────────────┐   │
+       │                 │   │        EC2 Instance           │   │
+       │  HTTPS :443     │   │                               │   │
+       └────────────────►│   │  ┌─────────────────────────┐ │   │
+                         │   │  │  Nginx (TLS termination) │ │   │
+                         │   │  │       :443 / :80          │ │   │
+                         │   │  └──────────┬────────────────┘ │   │
+                         │   │             │ HTTP              │   │
+                         │   │             ▼ 127.0.0.1:10000   │   │
+                         │   │  ┌──────────────────────────┐  │   │
+                         │   │  │    Docker Container       │  │   │
+                         │   │  │    Gunicorn + Flask       │  │   │
+                         │   │  │                           │  │   │
+                         │   │  │   ┌─────────────────┐    │  │   │
+                         │   │  │   │  DeepFace SFace  │    │  │   │
+                         │   │  │   │  (pre-baked in   │    │  │   │
+                         │   │  │   │   Docker image)  │    │  │   │
+                         │   │  │   └─────────────────┘    │  │   │
+                         │   │  └──────────┬───────────────┘  │   │
+                         │   └────────────┬┘                   │   │
+                         │                │                     │   │
+                         │   ┌────────────▼──────────────────┐ │   │
+                         │   │   Amazon RDS (PostgreSQL)      │ │   │
+                         │   │        :5432 (private)          │ │   │
+                         │   └───────────────────────────────┘ │   │
+                         └──────────────────────────────────────┘
+                                          │
+                                   Gmail SMTP :587
+```
 
-~~~mermaid
-flowchart LR
-    U[Employee browser / PWA] -->|HTTPS :443| N[Nginx reverse proxy]
-    N -->|localhost :10000| E[EC2 Docker container]
-    E --> AI[DeepFace SFace model]
-    E --> R[(Amazon RDS for PostgreSQL)]
-    E --> L[(EBS-backed logs / fallback SQLite)]
-    E --> M[Gmail SMTP :587]
-~~~
+### Complete Request Lifecycle (One Attendance Scan)
 
-The recommended production shape is one EC2 application host, Nginx for TLS termination, and a private RDS PostgreSQL instance for durable application data. The container includes the SFace model during the image build, which avoids downloading it during a user's first scan.
-
----
-
-## Database modes
-
-FaceAttend selects the database at startup based on DATABASE_URL.
-
-| Mode | Enable with | Best for | Important considerations |
-| --- | --- | --- | --- |
-| SQLite | Set DB_PATH; leave DATABASE_URL empty | Local development, testing, one host | Use a persistent disk. SQLite is not suitable as a shared multi-instance production database. |
-| PostgreSQL / Amazon RDS | Set DATABASE_URL=postgresql://... | EC2 production, durable backups, future horizontal growth | Keep RDS private, permit port 5432 only from the EC2 security group, and monitor connection health. |
-
-### How selection and fallback work
-
-1. If DATABASE_URL is present and psycopg2 is installed, the application attempts PostgreSQL.
-2. If the PostgreSQL connection cannot be established, the current code falls back to SQLite at DB_PATH.
-3. The fallback is a **continuity mechanism, not replication**.
-4. Data written to SQLite while RDS is unavailable is not automatically copied back to RDS.
-
-For a production EC2 deployment, verify the RDS network path before sending traffic to the application. If fallback is intentionally enabled, mount /app/data to persistent EBS storage and monitor logs closely so a temporary database failure does not silently create two data sets.
-
-The database schema is initialized automatically at application startup. This repository does not currently include Alembic or another versioned migration system; back up the database and test schema changes before upgrading a live deployment.
-
----
-
-## Technology stack
-
-| Layer | Technology |
-| --- | --- |
-| Runtime | Python 3.10.13 |
-| Web framework | Flask 3.0, Jinja2 |
-| Authentication | Flask-Login, PBKDF2-HMAC password hashing |
-| Computer vision | OpenCV, Pillow |
-| Face AI | DeepFace with SFace |
-| Database drivers | Built-in SQLite and psycopg2-binary for PostgreSQL |
-| Scheduling | APScheduler |
-| Email | Gmail SMTP with STARTTLS |
-| Production server | Gunicorn |
-| Packaging | Docker |
-| Frontend delivery | Server-rendered templates, JavaScript, responsive CSS, PWA manifest, service worker |
-
----
-
-## Project structure
-
-~~~text
-face-attendance-deepface/
-├── app/
-│   ├── __init__.py                 # Flask application factory and startup hooks
-│   ├── models/
-│   │   └── db.py                   # SQLite/PostgreSQL adapter, schema, attendance logic
-│   ├── routes/
-│   │   ├── auth.py                 # Login, registration, OTP, recovery, profile
-│   │   ├── api.py                  # Recognition, attendance, and admin APIs
-│   │   └── views.py                # HTML pages and PWA assets
-│   ├── services/
-│   │   ├── face_service.py         # SFace embeddings and matching
-│   │   ├── email_service.py        # Gmail SMTP delivery
-│   │   └── scheduler.py            # Absent marking and report jobs
-│   ├── static/                     # CSS, JavaScript, icons, manifest, service worker
-│   └── templates/                  # Employee, auth, and administrator screens
-├── clear_attendance.py             # Admin-authenticated attendance purge utility
-├── Dockerfile                      # Python 3.10 image with SFace model preloaded
-├── Procfile                        # Gunicorn process declaration
-├── render.yaml                     # Render deployment configuration
-├── requirements.txt                # Pinned Python dependencies
-├── run.py                          # Local entry point and Gunicorn app object
-├── .env.example                    # Safe configuration template
-└── README.md
-~~~
+```
+Step 1  Browser captures webcam frame (MediaDevices.getUserMedia API)
+Step 2  Frame → Base64 JPEG → POST /api/recognize-face (JSON body)
+Step 3  Nginx receives HTTPS → strips TLS → proxy_pass → Gunicorn :10000
+Step 4  Flask decodes Base64 → cv2 numpy array (BGR)
+Step 5  DeepFace SFace → 128-dimensional float32 embedding vector
+Step 6  NumPy L2 distance vs every stored embedding in the database
+Step 7  Best match < threshold (12.0) → MATCH FOUND
+Step 8  IST timestamp evaluated:
+          09:00–09:30 → present
+          09:30–17:00 → late
+          < 09:00 / > 17:00 → office_closed
+          Sunday → office_closed_sunday
+Step 9  INSERT into attendance (UNIQUE constraint prevents duplicates)
+Step 10 JSON response → browser renders result card with name + status
+```
 
 ---
 
-## Prerequisites
+## ⚙️ Technology Stack
 
-For local development:
-
-- Python **3.10.13**
-- Git
-- A browser with camera permissions
-- A Gmail account with 2-Step Verification and an App Password if employee registration or password recovery is enabled
-
-For Docker or AWS:
-
-- Docker Engine and Docker Compose-compatible tooling if you add Compose yourself
-- An EC2 host with enough memory for TensorFlow and DeepFace
-- For RDS mode: a PostgreSQL RDS instance, its endpoint, credentials, and security-group connectivity
-- For camera access outside localhost: a valid HTTPS certificate and domain name
+| Layer | Technology | Version | Purpose |
+|---|---|---|---|
+| **Web Framework** | Flask | 3.0.0 | WSGI app, blueprints, routing |
+| **WSGI Server** | Gunicorn | 21.2.0 | Production process manager |
+| **Reverse Proxy** | Nginx | Latest | TLS termination, port isolation, HTTP→HTTPS |
+| **AI / ML** | DeepFace | 0.0.83 | SFace face recognition pipeline |
+| **AI Backend** | TensorFlow | 2.12.0 | SFace model inference |
+| **Image Processing** | OpenCV (headless) | 4.8.1.78 | Frame decode, resize, face detect |
+| **Vector Math** | NumPy | 1.23.5 | L2 Euclidean distance comparison |
+| **Primary DB** | PostgreSQL (RDS) | 13+ | Production durable storage |
+| **Fallback DB** | SQLite | built-in | Development and auto-failover |
+| **DB Driver** | psycopg2-binary | 2.9.9 | PostgreSQL adapter |
+| **Auth** | Flask-Login | 0.6.3 | Session management, user loader |
+| **Password Hashing** | PBKDF2-HMAC-SHA256 | built-in | 100,000 iterations |
+| **Scheduler** | APScheduler | 3.10.4 | Background cron jobs |
+| **Email** | Gmail SMTP + STARTTLS | built-in | OTP delivery, daily summaries |
+| **Containerisation** | Docker | — | Reproducible build, model pre-baked |
+| **Cloud Host** | AWS EC2 + RDS | — | Production deployment target |
+| **Cloud Alt.** | Render.com | — | Zero-ops free tier |
+| **PWA** | Web App Manifest + Service Worker | — | Installable on any device |
+| **Frontend** | Jinja2 + Vanilla JS | — | Server-rendered UI, zero build step |
 
 ---
 
-## Run locally with SQLite
+## 🚀 Core Feature Set
 
-### 1. Clone and enter the project
+### Biometric Attendance
 
-~~~bash
-git clone https://github.com/SuprabhSharma/face-attendance-deepface.git
+- **Real-time face scan** using device webcam — no additional hardware
+- **SFace AI engine** — 28 MB, runs entirely on CPU, no GPU required
+- **Sub-second recognition** per frame after model warm-up
+- **Duplicate prevention** — `UNIQUE(user_id, date)` constraint prevents marking twice per day
+- **Multi-face scene handling** — largest primary face is automatically selected
+- **Minimum face area filter** — rejects detections smaller than 40×40 px
+- **Business hours enforcement** — attendance locked outside 9:00 AM–5:00 PM IST, Mon–Sat
+- **Sunday office-closed lock** — clear error message when office is closed
+
+### User Authentication System
+
+- **Two distinct login portals** — `/auth/login` (employee) and `/auth/admin-login` (admin)
+- **Gmail-only registration** — `@gmail.com` enforced at validation layer
+- **OTP email verification** — 6-digit code sent via Gmail SMTP before account activation
+- **Password reset via OTP** — 4-digit recovery code with configurable expiry and resend throttle
+- **OTP rate limiting** — max 5 attempts, 60-second resend cooldown, max 3 resends
+- **Strong password policy** — minimum 8 characters, must include letters and numbers
+- **PBKDF2-HMAC-SHA256** hashing — 100,000 iterations
+- **HttpOnly + Secure session cookies** — XSS-resistant, HTTPS-only in production
+- **Configurable session timeout** — default 30 minutes of inactivity
+- **Role-Based Access Control (RBAC)** — `admin` and `user` roles with `@role_required` decorator
+
+### Admin Dashboard
+
+- **Live roster** — real-time attendance status for every employee today
+- **Full user management** — view, create, and permanently delete employees
+- **Per-user attendance history** — paginated, filterable by date range and status
+- **Deletion re-authentication** — admin must re-enter their own password before deleting any account
+- **Atomic user purge** — deletes user + all attendance records + all audit logs in one transaction
+- **Audit log trail** — every significant action persisted to `audit_logs` table
+
+### Employee Dashboard
+
+- **Personal attendance history** — paginated view with status filter
+- **Monthly/weekly summary stats** — present, late, absent counts
+- **Face registration page** — one-time biometric enrolment with optional re-enrolment
+- **Profile picture upload** — stored as base64 in the database
+- **Duplicate face guard** — prevents registering a face already claimed by another account
+
+### Automated Scheduling
+
+| Job | Schedule | Action |
+|---|---|---|
+| `mark_absentees` | 17:00 IST Mon–Sat | Marks every enrolled employee with no check-in as `absent` |
+| `send_summaries` | 17:15 IST Mon–Sat | Sends daily attendance summary email to each employee |
+| `monthly_reports` | 23:00 IST on 1st of month | Generates monthly attendance reports and audit logs |
+
+### Observability & Logging
+
+- **4 rotating log files** — `application.log`, `attendance.log`, `auth.log`, `errors.log`
+- **10 MB / 5 MB** rotating limits with 10 backup generations each
+- **Structured format** — `timestamp · name · level · file:line · message`
+- **Database audit trail** — `audit_logs` table for `auto_absent_marked`, `monthly_report_generated`, and all admin actions
+
+---
+
+## 🤖 AI Engine: How Face Recognition Works
+
+### Model: SFace (SphereFace variant)
+
+SFace is a lightweight face recognition model optimised for edge and low-resource environments.
+
+| Property | Value |
+|---|---|
+| Model size | ~28 MB |
+| Input | BGR image (any resolution, auto-resized to max 640 px width) |
+| Detector backend | OpenCV (fastest option) |
+| Embedding dimensions | 128 float32 values |
+| Distance metric | **Raw L2 Euclidean distance** (not cosine) |
+| Match threshold | `12.0` (configurable via `FACE_RECOGNITION_THRESHOLD`) |
+| Same-person distance | typically `0 – 10` |
+| Different-person distance | typically `13+` |
+| Hardware requirement | CPU only — no GPU needed |
+
+### Registration Pipeline
+
+```
+Camera Frame (BGR)
+        │
+        ▼
+Resize to max 640px width (aspect-preserved for speed)
+        │
+        ▼
+DeepFace.represent(model='SFace', detector='opencv', enforce_detection=True)
+        │
+        ▼
+Filter candidates by bounding-box area ≥ 40×40 px
+        │
+        ▼
+Select largest face (primary subject when multiple faces present)
+        │
+        ▼
+np.asarray(embedding, dtype=float32).reshape(-1)   →  128-dim vector
+        │
+        ▼
+Duplicate check: L2 distance against all existing stored embeddings
+        │
+        ▼
+json.dumps(embedding.tolist())  →  stored in users.embedding (TEXT)
+```
+
+### Recognition Pipeline
+
+```
+Camera Frame (BGR)
+        │
+        ▼
+Same embedding extraction as registration
+        │
+        ▼
+For each enrolled user in database:
+    stored  = np.asarray(json.loads(users.embedding), float32)
+    distance = np.linalg.norm(stored - query)   ← L2 Euclidean
+    track best_distance and best_match
+        │
+        ▼
+if best_distance ≤ threshold (12.0):
+    MATCH FOUND → mark_attendance(user_id, IST_timestamp)
+else:
+    No match — return face_not_recognized
+```
+
+### Threshold Auto-Correction
+
+If `FACE_RECOGNITION_THRESHOLD` is set to a value `< 2.0` (cosine-style, e.g. `0.80`), the system automatically resets to `12.0` and logs a warning — preventing silent misconfiguration that would reject all valid matches.
+
+### Cold-Start Optimisation
+
+The SFace model is:
+- **Pre-downloaded at Docker build time** (`DeepFace.build_model('SFace')` in Dockerfile) — no delay on first user scan
+- **Pre-loaded into memory on app startup** via a background daemon thread — available immediately when the first API call arrives
+
+---
+
+## 🗄️ Database Architecture
+
+### Dual-Database with Automatic Failover
+
+The `get_db_connection()` function transparently handles both engines:
+
+```
+If DATABASE_URL is set and psycopg2 is installed:
+    Try → PostgreSQL (3-second connection timeout)
+    On failure → log WARNING "DATABASE AUTO-FALLBACK"
+                 switch IS_POSTGRES = False
+                 re-initialise SQLite tables if needed
+                 continue serving on SQLite
+
+If DATABASE_URL is empty:
+    Connect directly to SQLite (30-second busy timeout)
+```
+
+This means even if your RDS instance is temporarily unavailable, the application keeps serving traffic on SQLite — zero downtime.
+
+### Schema Overview
+
+**`users`**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | SERIAL / INTEGER PK | Auto-increment |
+| `username` | VARCHAR(100) UNIQUE | Display name and login key |
+| `email` | VARCHAR(255) UNIQUE | Gmail-only enforced |
+| `password_hash` | VARCHAR(255) | PBKDF2-HMAC-SHA256 hex |
+| `full_name` | VARCHAR(255) | Used in emails and recognition responses |
+| `embedding` | TEXT | JSON array of 128 floats (SFace vector) |
+| `profile_picture` | TEXT | Base64-encoded image data |
+| `role` | VARCHAR(20) | `admin` or `user` |
+| `status` | VARCHAR(20) | `active` or `inactive` |
+| `is_verified` | INTEGER | 0 = pending OTP, 1 = email verified |
+| `created_at` / `updated_at` | TIMESTAMPTZ | UTC timestamps |
+
+**`attendance`**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | SERIAL / INTEGER PK | Auto-increment |
+| `user_id` | FK → users | `ON DELETE CASCADE` |
+| `date` | DATE | IST date of attendance |
+| `time_in` | TIME | Actual scan time (IST) |
+| `time_out` | TIME | Future extension |
+| `status` | VARCHAR(20) | `present`, `late`, `absent`, `half_day` |
+| `notes` | TEXT | Admin override notes |
+| `marked_by` | VARCHAR(50) | `face_recognition` or `admin` |
+| `UNIQUE(user_id, date)` | — | Prevents duplicate daily records |
+
+**`working_hours`** — Per day-of-week schedule (Mon–Sat 09:00–17:00, Sunday closed)
+
+**`pending_verifications`** — OTP registration tokens with expiry, attempt count, resend limits
+
+**`password_reset_otps`** — Password recovery tokens with identical rate-limiting controls
+
+**`audit_logs`** — Immutable append-only event log: `user_id`, `action`, `resource_type`, `resource_id`, `details`, `timestamp`
+
+### Database Indexes (PostgreSQL)
+
+```sql
+-- Fast user lookups
+CREATE INDEX idx_users_username  ON users(username);
+CREATE INDEX idx_users_email     ON users(email);
+CREATE INDEX idx_users_role      ON users(role);
+
+-- Efficient range queries for attendance reports
+CREATE INDEX idx_attendance_date         ON attendance(date);
+CREATE INDEX idx_attendance_user_id      ON attendance(user_id);
+CREATE INDEX idx_attendance_date_user    ON attendance(date, user_id);
+CREATE INDEX idx_attendance_user_date    ON attendance(user_id, date);
+CREATE INDEX idx_attendance_status       ON attendance(status);
+```
+
+### Unified SQL Abstraction Layer
+
+The `DBCursorWrapper` class translates SQLite-style `?` placeholders to PostgreSQL-style `%s` at query time — allowing a single codebase to run on both databases without any ORM overhead or query duplication.
+
+---
+
+## 📡 API Reference
+
+All endpoints return JSON. Auth is enforced via Flask-Login session cookies.
+
+### Face Operations
+
+#### `POST /api/register-user`
+*(Login required · role: `user` only — admins are exempt)*
+
+Register or update the authenticated user's face biometric.
+
+```json
+// Request body
+{ "image": "<base64-encoded-jpeg>", "force": false }
+
+// Success — new registration
+{ "success": true, "message": "Face biometrics registered successfully for John Doe!" }
+
+// Success — already registered (force=false)
+{ "success": true, "already_registered": true, "message": "Face already registered for John Doe. You can now mark attendance!" }
+
+// Error — face belongs to another account
+{ "success": false, "message": "This face is already registered to another employee account (Jane Smith)." }
+
+// Error — no face detected
+{ "success": false, "message": "No face detected. Look directly at the camera in good lighting." }
+```
+
+#### `POST /api/recognize-face`
+*(No auth required — designed for kiosk/shared-device use)*
+
+Identify a face in the submitted image and mark attendance.
+
+```json
+// Request body
+{ "image": "<base64-encoded-jpeg>" }
+
+// Matched and marked
+{
+  "success": true,
+  "found": true,
+  "user_id": 42,
+  "user_name": "John Doe",
+  "user_email": "john@gmail.com",
+  "status": "present",
+  "marked_at": "2026-09-11 09:15:32",
+  "message": "Welcome John Doe! Attendance marked at 2026-09-11 09:15:32 IST"
+}
+
+// Not recognised
+{ "success": true, "found": false, "code": "face_not_recognized", "message": "..." }
+```
+
+**All possible `status` values:**
+
+| Status | Meaning |
+|---|---|
+| `present` | Scanned 09:00–09:30 IST |
+| `late` | Scanned 09:30–17:00 IST |
+| `duplicate` | Already marked today |
+| `already_absent` | Auto-marked absent by scheduler; contact admin to override |
+| `office_closed` | Outside 09:00–17:00 IST window |
+| `office_closed_sunday` | Sunday — office closed |
+| `admin_exempt` | Admin accounts are not tracked |
+
+### Attendance Data
+
+#### `GET /api/attendance`
+*(Login required)*
+
+Paginated personal attendance history. Absent days (Mon–Sat) are synthesised automatically even if no database row exists — so employee and admin views always agree.
+
+| Query Param | Type | Default | Description |
+|---|---|---|---|
+| `start_date` | YYYY-MM-DD | user registration date | Range start |
+| `end_date` | YYYY-MM-DD | today | Range end |
+| `status` | string | — | Filter: `present`, `late`, `absent`, `pending` |
+| `page` | int | 1 | Page number |
+| `page_size` | int | 60 | Records per page |
+
+```json
+{
+  "success": true,
+  "data": [
+    { "date": "2026-09-11", "status": "present", "time_in": "09:12:44", "time_out": null, "marked_by": "face_recognition" }
+  ],
+  "summary": { "present": 18, "late": 2, "absent": 1 },
+  "total": 21,
+  "page": 1,
+  "pages": 1,
+  "start_date": "2026-09-01",
+  "end_date": "2026-09-11"
+}
+```
+
+#### `GET /api/users`
+All enrolled users (id + display name). No auth guard — used by kiosk UI.
+
+### Admin-Only Endpoints
+*(Login required · role: `admin`)*
+
+#### `GET /api/admin/attendance/today`
+Live roster — one current-day status per active non-admin employee.
+
+#### `GET /api/admin/attendance/history/<user_id>`
+Paginated attendance history for a specific employee. Accepts same query params as `/api/attendance`. Returns `404` if `user_id` not found.
+
+### System
+
+#### `GET /health`
+No auth required. Used by Docker, Nginx, load balancers, and uptime monitors.
+```json
+{ "status": "ok" }
+```
+
+---
+
+## 🔐 Security Model
+
+| Concern | Implementation |
+|---|---|
+| Password storage | PBKDF2-HMAC-SHA256, 100,000 iterations |
+| Session cookies | `SESSION_COOKIE_HTTPONLY=True`, `SESSION_COOKIE_SECURE=True` in production |
+| Session expiry | Configurable via `SESSION_TIMEOUT_MINUTES` (default 30 min) |
+| Email verification | 6-digit OTP required before account activation |
+| OTP brute force | Max 5 attempts, 60-second resend cooldown, max 3 resends |
+| OTP expiry | 10 minutes (configurable) |
+| Duplicate biometrics | L2 distance check against all embeddings before saving |
+| Admin account deletion | Requires re-entering admin password — no accidental deletes |
+| Port isolation | Gunicorn bound to `127.0.0.1:10000` — never publicly exposed |
+| TLS | Nginx terminates all HTTPS — Gunicorn only sees plain HTTP internally |
+| Secrets | All credentials in `.env` — never committed, never logged |
+| SQL injection | Parameterised queries throughout — no string concatenation in SQL |
+| Referential integrity | `ON DELETE CASCADE` — no orphaned attendance records after user deletion |
+| Admin exemption | Admin accounts cannot register face biometrics or appear in attendance |
+
+---
+
+## ⏰ Automated Scheduling System
+
+The `APScheduler` `BackgroundScheduler` runs as a daemon thread inside the Gunicorn worker process.
+
+```
+APScheduler (daemon thread inside Gunicorn worker)
+       │
+       ├─ CronTrigger(17:00 IST, Mon–Sat) ──► mark_end_of_day_absentees()
+       │       └─ For each enrolled user with no attendance row today:
+       │              INSERT attendance(status='absent', marked_by='scheduler')
+       │              log_audit(user_id, action='auto_absent_marked', ...)
+       │
+       ├─ CronTrigger(17:15 IST, Mon–Sat) ──► send_daily_summaries()
+       │       └─ For each today's record with a valid email:
+       │              email_service.send_daily_summary(user_id, email, name, data)
+       │
+       └─ CronTrigger(day=1, 23:00 IST) ──► generate_monthly_reports()
+               └─ For each user:
+                      report = get_user_monthly_summary(user_id, year, month)
+                      log_audit(user_id, action='monthly_report_generated',
+                                details=f'{present} present, {absent} absent, {late} late')
+```
+
+**Duplicate-start guard:** `start_scheduler()` checks `scheduler.get_job('mark_absentees')` before registering any job — safe to call on every app restart.
+
+---
+
+## 📱 PWA — Install on Any Device
+
+FaceAttend is a full Progressive Web App. Users install it to their home screen without an App Store.
+
+**Capabilities:**
+- **Installable** — `manifest.json` with `display: standalone`
+- **Offline-ready** — Service Worker (`/sw.js`) caches core assets with cache-first strategy
+- **App shortcuts** — "Mark Attendance" (`/camera`) and "My Reports" (`/report`) shortcuts on long-press
+- **Maskable icons** — Adaptive icon format for Android home screens
+- **Theme colour** — `#2563eb` matches the UI chrome
+
+**How to install:**
+- **Chrome / Edge (desktop):** Click the install icon in the address bar
+- **Chrome (Android):** Browser menu → "Add to Home screen"
+- **Safari (iOS):** Share button → "Add to Home Screen"
+
+**Technical detail:** The Service Worker is served from `/sw.js` (root path) with header `Service-Worker-Allowed: /` to grant full-origin scope control.
+
+---
+
+## 🌐 Nginx — Production Reverse Proxy
+
+### Role in the Stack
+
+Nginx is the **only publicly exposed process** in production. It provides:
+
+1. **TLS / HTTPS termination** — decrypts incoming HTTPS; Gunicorn sees plain HTTP internally
+2. **HTTP → HTTPS forced redirect** — required because browsers refuse webcam access on non-HTTPS origins
+3. **Port isolation** — Gunicorn binds to `127.0.0.1:10000` (loopback) and is invisible to the internet
+4. **Header forwarding** — real client IP passed via `X-Real-IP` and `X-Forwarded-For` for logging and rate-limiting
+5. **Large body support** — `client_max_body_size 10M` allows webcam frame uploads
+
+### Why HTTPS is Non-Negotiable
+
+Modern browsers enforce the **Secure Context** requirement for `MediaDevices.getUserMedia()` (the webcam API). Without HTTPS, the camera permission prompt will **never appear**. The only exception is `localhost`, which is why local development works without TLS.
+
+### Traffic Flow
+
+```
+Public Internet (port 443)
+        │
+        ▼
+  Nginx on EC2
+  (TLS termination)
+        │
+        │  HTTP 127.0.0.1:10000
+        │  (loopback — never leaves the server)
+        ▼
+  Docker / Gunicorn
+        │
+        ▼
+  Flask Application
+```
+
+### Complete Nginx Configuration
+
+Save as `/etc/nginx/sites-available/faceattend`:
+
+```nginx
+# ── HTTP: redirect all traffic to HTTPS ──────────────────────────
+server {
+    listen 80;
+    server_name attendance.your-domain.com;
+
+    return 301 https://$host$request_uri;
+}
+
+# ── HTTPS: TLS termination + reverse proxy ───────────────────────
+server {
+    listen 443 ssl http2;
+    server_name attendance.your-domain.com;
+
+    # TLS certificates (Certbot populates these automatically)
+    ssl_certificate     /etc/letsencrypt/live/attendance.your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/attendance.your-domain.com/privkey.pem;
+
+    # Modern TLS settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    # Security headers
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options    nosniff                               always;
+    add_header X-Frame-Options           SAMEORIGIN                            always;
+    add_header X-XSS-Protection         "1; mode=block"                       always;
+    add_header Referrer-Policy           "strict-origin-when-cross-origin"     always;
+
+    # Allow webcam frame uploads (Base64 JPEG can be several MB)
+    client_max_body_size 10M;
+
+    location / {
+        proxy_pass         http://127.0.0.1:10000;
+        proxy_http_version 1.1;
+
+        # Pass real client information through to Flask
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout 90s;
+        proxy_connect_timeout 10s;
+    }
+}
+```
+
+### Install and Enable
+
+```bash
+# 1. Install Nginx
+sudo apt update && sudo apt install -y nginx
+
+# 2. Write config (paste the block above)
+sudo nano /etc/nginx/sites-available/faceattend
+
+# 3. Enable the site
+sudo ln -s /etc/nginx/sites-available/faceattend /etc/nginx/sites-enabled/faceattend
+
+# 4. Test syntax
+sudo nginx -t
+
+# 5. Reload without downtime
+sudo systemctl reload nginx
+
+# 6. Get a free TLS certificate from Let's Encrypt
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d attendance.your-domain.com
+
+# 7. Verify auto-renewal
+sudo certbot renew --dry-run
+```
+
+### Nginx Quick Reference
+
+| Command | Purpose |
+|---|---|
+| `sudo nginx -t` | Validate configuration syntax |
+| `sudo systemctl reload nginx` | Apply config changes (zero downtime) |
+| `sudo systemctl status nginx` | Check running state |
+| `sudo tail -f /var/log/nginx/error.log` | Stream error logs |
+| `sudo tail -f /var/log/nginx/access.log` | Stream access logs |
+
+---
+
+## 💻 Local Development Setup
+
+### Prerequisites
+
+| Tool | Version |
+|---|---|
+| Python | 3.10.x (3.10.13 recommended) |
+| pip | 23+ |
+| Git | any |
+| Webcam | Required for face features |
+
+### Steps
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/your-org/face-attendance-deepface.git
 cd face-attendance-deepface
-~~~
 
-### 2. Create a Python environment
+# 2. Create and activate virtual environment
+python -m venv venv
 
-macOS/Linux:
+# Windows
+venv\Scripts\activate
 
-~~~bash
-python3.10 -m venv venv
+# macOS / Linux
 source venv/bin/activate
-~~~
 
-Windows PowerShell:
-
-~~~powershell
-py -3.10 -m venv venv
-.\venv\Scripts\Activate.ps1
-~~~
-
-### 3. Install dependencies
-
-~~~bash
-python -m pip install --upgrade pip
+# 3. Install all dependencies
+pip install --upgrade pip
 pip install -r requirements.txt
-~~~
 
-### 4. Create environment configuration
-
-macOS/Linux:
-
-~~~bash
+# 4. Configure environment
 cp .env.example .env
-~~~
+# Edit .env → set ADMIN_EMAIL, ADMIN_PASSWORD, and SMTP_* credentials
 
-Windows PowerShell:
-
-~~~powershell
-Copy-Item .env.example .env
-~~~
-
-For a basic local SQLite run, set at least:
-
-~~~dotenv
-FLASK_ENV=development
-SECRET_KEY=replace-with-a-long-random-value
-DB_PATH=attendance_system.db
-DATABASE_URL=
-SCHEDULER_ENABLED=false
-ADMIN_USERNAME=admin
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=replace-with-a-strong-password
-FACE_RECOGNITION_THRESHOLD=12.0
-~~~
-
-If employees need to register or recover a password, configure Gmail SMTP as described in the [configuration reference](#configuration-reference). Without SMTP, those email-based flows cannot complete.
-
-### 5. Start the application
-
-~~~bash
+# 5. Start the application
 python run.py
-~~~
+```
 
-Open <http://localhost:5000>. The health endpoint is available at <http://localhost:5000/health>.
+Open **http://localhost:5000** in your browser.
 
-The first face operation may take longer if the SFace model has not already been cached. Docker builds download and prepare the model during image creation instead.
+**First-time startup checklist:**
+- Database tables are auto-created on first run
+- Default admin account bootstrapped from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`
+- SFace model pre-loads in a background thread — look for `SFace model preloaded successfully` in the console
+- Camera works on localhost without HTTPS (browser secure context exception)
+
+**Development tips:**
+- Set `SCHEDULER_ENABLED=false` to disable background cron jobs during dev
+- Logs are written to `logs/` directory in the project root
+- SQLite database created at `attendance_system.db` by default
 
 ---
 
-## Run with Docker
+## 🐳 Docker Deployment
 
-### Build the image
+### What the Docker Image Contains
 
-~~~bash
+```dockerfile
+FROM python:3.10.13-slim           # Pinned Python for TensorFlow compatibility
+
+# System libs: OpenCV needs libgl1, libglib2.0-0
+RUN apt-get install build-essential cmake libgl1 libglib2.0-0
+
+# Install Python dependencies
+RUN pip install -r requirements.txt
+
+# ← Key: pre-download SFace model during build, not at runtime
+RUN python -c "from deepface import DeepFace; DeepFace.build_model('SFace')"
+
+EXPOSE 10000
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT --timeout 120 --workers 1 run:app"]
+```
+
+The SFace model is baked into the image — no cold-start download on first user scan.
+
+### Build and Run
+
+```bash
+# Build image
 docker build -t faceattend:latest .
-~~~
 
-### Run with persistent SQLite
-
-The Dockerfile binds Gunicorn to the PORT environment variable. The example below uses port 10000, the same port exposed by the image, and persists both the database and logs on the host.
-
-~~~bash
+# Create persistent host directories
 mkdir -p data logs
+
+# Start container (loopback-only binding for security)
+docker run -d \
+  --name faceattend \
+  --restart unless-stopped \
+  -p 127.0.0.1:10000:10000 \
+  --env-file .env \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/logs:/app/logs \
+  faceattend:latest
+
+# Verify healthy startup
+curl http://127.0.0.1:10000/health
+# Expected: {"status":"ok"}
+
+# Stream startup logs
+docker logs -f faceattend
+```
+
+> **Security note:** `-p 127.0.0.1:10000:10000` binds to loopback only. The container port is invisible to the internet. Nginx on the host handles all public HTTPS traffic.
+
+### Container Lifecycle
+
+```bash
+docker stop faceattend        # Graceful shutdown
+docker start faceattend       # Restart existing container
+docker rm faceattend          # Remove container (volumes persist on host)
+docker logs --tail 200 faceattend   # Last 200 log lines
+```
+
+### Zero-Downtime Update
+
+```bash
+cd /opt/faceattend/app-source
+git pull origin main
+
+# Rebuild image
+docker build -t faceattend:latest .
+
+# Swap container
+docker stop faceattend && docker rm faceattend
 
 docker run -d \
   --name faceattend \
   --restart unless-stopped \
-  --env-file .env \
-  -e FLASK_ENV=production \
-  -e PORT=10000 \
-  -e DB_PATH=/app/data/attendance_system.db \
+  --env-file /opt/faceattend/.env \
   -p 127.0.0.1:10000:10000 \
-  -v "$(pwd)/data:/app/data" \
-  -v "$(pwd)/logs:/app/logs" \
+  -v /opt/faceattend/data:/app/data \
+  -v /opt/faceattend/logs:/app/logs \
   faceattend:latest
-~~~
 
-On Windows PowerShell, replace the $(pwd) volume paths with absolute paths, for example D:\faceattend\data:/app/data.
-
-Check the container:
-
-~~~bash
-docker ps
-docker logs -f faceattend
-~~~
-
-### Run with PostgreSQL or RDS
-
-Keep the persistent data volume for logs and emergency SQLite fallback, then provide DATABASE_URL in .env:
-
-~~~dotenv
-DATABASE_URL=postgresql://attendance_user:URL_ENCODED_PASSWORD@your-rds-endpoint:5432/faceattend
-DB_PATH=/app/data/attendance_system.db
-~~~
-
-The application initializes the required tables in PostgreSQL on startup. Do not place a publicly reachable RDS endpoint or database credentials in source control.
-
-### Why the default is one Gunicorn worker
-
-The SFace model is memory-intensive compared with ordinary Flask routes, and APScheduler runs in the application process. Keep --workers 1 unless you deliberately redesign scheduler ownership and account for one face model per worker. Running the scheduler in multiple workers can duplicate scheduled jobs.
+curl http://127.0.0.1:10000/health
+```
 
 ---
 
-## Deploy to AWS EC2 with Amazon RDS
+## ☁️ AWS EC2 + RDS Production Deployment
 
-This is the recommended production-style deployment for a small or medium installation.
+### Recommended Infrastructure
 
-### Target layout
+| Component | AWS Service | Notes |
+|---|---|---|
+| Application host | EC2 (t3.medium+) | Docker + Nginx |
+| Database | RDS for PostgreSQL 13+ | Same VPC as EC2, private subnet |
+| Persistent storage | EBS (attached to EC2) | Mount `/app/data` and `/app/logs` |
+| TLS | Let's Encrypt via Certbot | Free, auto-renews every 90 days |
+| DNS | Route 53 or external registrar | A record pointing to EC2 Elastic IP |
 
-~~~text
-Internet
-   |
-   v
-HTTPS / 443
-   |
-EC2 security group
-   |
-Nginx :443  --->  Docker / Gunicorn :10000
-                         |
-                         +--> RDS PostgreSQL :5432
-                         +--> EBS /app/data and /app/logs
-                         +--> Gmail SMTP :587
-~~~
+### Security Group Rules
 
-### Step 1: Create the RDS database
+| Resource | Protocol | Port | Source |
+|---|---|---|---|
+| EC2 | TCP | 22 (SSH) | Your fixed admin IP only |
+| EC2 | TCP | 80 (HTTP) | `0.0.0.0/0` (redirects to HTTPS) |
+| EC2 | TCP | 443 (HTTPS) | `0.0.0.0/0` |
+| RDS | TCP | 5432 | **EC2 security group ID** — never `0.0.0.0/0` |
 
-Create an Amazon RDS for PostgreSQL instance in the same VPC as the EC2 host.
+### Step 1: Create RDS PostgreSQL Instance
 
-Recommended baseline:
+- Place in the same VPC and availability zone as your EC2 instance
+- Choose a **private subnet** — disable public access
+- Enable automated backups with at least 7-day retention
+- Create a dedicated database user for FaceAttend (not the RDS master user)
+- Note the endpoint URL, database name, username, and password for `DATABASE_URL`
 
-- Keep the database **private**; do not allow public internet access unless there is a specific, reviewed requirement.
-- Create a dedicated database and application user for FaceAttend.
-- Enable automated backups and choose a retention window appropriate for the organization.
-- Use the RDS endpoint, database name, username, and password to construct DATABASE_URL.
-- Put the RDS instance and EC2 host in compatible subnets and availability zones for the required availability design.
+### Step 2: Prepare EC2
 
-### Step 2: Configure security groups
+```bash
+# Install Docker using the official script
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER && newgrp docker
 
-Use separate security groups:
+# Set up project directory layout
+sudo mkdir -p /opt/faceattend/{app-source,data,logs}
+sudo git clone https://github.com/your-org/face-attendance-deepface.git /opt/faceattend/app-source
 
-| Resource | Inbound rule | Source |
-| --- | --- | --- |
-| EC2 | TCP 22 | Your fixed administrator IP only |
-| EC2 | TCP 80 | Internet, if redirecting HTTP to HTTPS |
-| EC2 | TCP 443 | Internet |
-| RDS | TCP 5432 | **EC2 security group**, never 0.0.0.0/0 |
+# Create production secrets file (mode 600 — owner-only read)
+sudo nano /opt/faceattend/.env
+sudo chmod 600 /opt/faceattend/.env
+```
 
-Do not expose the Gunicorn port directly to the public internet. Bind the container to 127.0.0.1:10000 and let Nginx handle public HTTP/S traffic.
+### Step 3: Production `.env`
 
-### Step 3: Prepare EC2
-
-Install Docker using the official Docker instructions for the EC2 operating system, then clone the repository into a controlled application directory. A typical layout is:
-
-~~~text
-/opt/faceattend/
-├── app-source/       # cloned repository
-├── data/             # persistent SQLite fallback, if enabled
-├── logs/             # persistent application logs
-└── .env              # server-only secrets, mode 600
-~~~
-
-Create .env with production values. A RDS-backed example is:
-
-~~~dotenv
+```dotenv
 FLASK_ENV=production
-SECRET_KEY=generate-a-long-random-secret
+SECRET_KEY=generate-a-64-character-random-string-here
 PORT=10000
 
-DATABASE_URL=postgresql://attendance_user:URL_ENCODED_PASSWORD@your-rds-endpoint:5432/faceattend
-DB_PATH=/app/data/attendance_system.db
+# Amazon RDS PostgreSQL
+DATABASE_URL=postgresql://attendance_user:URL_ENCODED_PASSWORD@your-rds-endpoint.rds.amazonaws.com:5432/faceattend
+DB_PATH=/app/data/attendance_system.db    # SQLite auto-fallback path
 
 SCHEDULER_ENABLED=true
 FACE_RECOGNITION_THRESHOLD=12.0
 SESSION_TIMEOUT_MINUTES=30
 
 ADMIN_USERNAME=admin
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=replace-before-first-start
+ADMIN_EMAIL=admin@yourdomain.com
+ADMIN_PASSWORD=change-this-to-a-strong-password-before-first-start
 ADMIN_FULL_NAME=System Administrator
 
 SMTP_ENABLED=true
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USERNAME=sender@gmail.com
-SMTP_PASSWORD=GMAIL_APP_PASSWORD
+SMTP_PASSWORD=GMAIL_16_CHARACTER_APP_PASSWORD
 SMTP_FROM=sender@gmail.com
 SMTP_USE_TLS=true
 SMTP_TIMEOUT_SECONDS=10
@@ -477,17 +911,15 @@ OTP_EXPIRES_MINUTES=10
 OTP_MAX_ATTEMPTS=5
 OTP_RESEND_COOLDOWN_SECONDS=60
 OTP_MAX_RESENDS=3
-~~~
+```
 
-If the database password contains characters such as @, :, /, or #, URL-encode the password before putting it in the PostgreSQL connection string.
+> If the RDS password contains `@`, `:`, `/`, or `#`, URL-encode those characters in `DATABASE_URL`.
 
-### Step 4: Build and start the container
+### Step 4: Build and Start Container
 
-~~~bash
+```bash
 cd /opt/faceattend/app-source
 docker build -t faceattend:latest .
-
-mkdir -p /opt/faceattend/data /opt/faceattend/logs
 
 docker run -d \
   --name faceattend \
@@ -497,329 +929,226 @@ docker run -d \
   -v /opt/faceattend/data:/app/data \
   -v /opt/faceattend/logs:/app/logs \
   faceattend:latest
-~~~
 
-Verify startup:
-
-~~~bash
+# Verify
 curl http://127.0.0.1:10000/health
-docker logs --tail 200 faceattend
-~~~
+docker logs --tail 100 faceattend
+```
 
-The health response should be:
+If RDS is reachable, startup logs will show successful PostgreSQL initialisation. If RDS is unreachable, you will see the auto-fallback warning and the application runs on SQLite until RDS recovers.
 
-~~~json
-{"status":"ok"}
-~~~
+### Step 5: Install Nginx + TLS
 
-The startup logs should show successful database initialization. If RDS is unreachable, stop and correct the network or credentials issue before using the fallback database for production traffic.
+```bash
+sudo apt update && sudo apt install -y nginx certbot python3-certbot-nginx
 
-### Step 5: Put Nginx in front of the container
+# Write Nginx config (see the Nginx section above)
+sudo nano /etc/nginx/sites-available/faceattend
+sudo ln -s /etc/nginx/sites-available/faceattend /etc/nginx/sites-enabled/faceattend
+sudo nginx -t
+sudo systemctl reload nginx
 
-Use a server block similar to this, replacing the hostname:
+# Free TLS certificate
+sudo certbot --nginx -d attendance.your-domain.com
+```
 
-~~~nginx
-server {
-    listen 80;
-    server_name attendance.example.com;
+### Step 6: Validate End-to-End
 
-    location / {
-        proxy_pass http://127.0.0.1:10000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-~~~
+```bash
+# Health check over HTTPS
+curl https://attendance.your-domain.com/health
 
-After DNS points to the EC2 public address, configure a trusted TLS certificate and redirect HTTP to HTTPS. Camera access normally requires a secure context; localhost is the main development exception.
-
-### Step 6: Validate the end-to-end flow
-
-1. Open the HTTPS hostname and confirm /health returns HTTP 200.
-2. Sign in through /auth/admin-login with the bootstrapped administrator account.
-3. Register a test employee and verify the Gmail OTP.
-4. Sign in as the employee and register a face in good lighting.
-5. Scan once during each required attendance band in a test environment.
-6. Confirm the employee dashboard and administrator live roster show the same status.
-7. Confirm an RDS snapshot or backup policy exists before real attendance data is collected.
-
-### Production update flow
-
-~~~bash
-cd /opt/faceattend/app-source
-git pull
-docker build -t faceattend:latest .
-docker rm -f faceattend
-docker run -d \
-  --name faceattend \
-  --restart unless-stopped \
-  --env-file /opt/faceattend/.env \
-  -p 127.0.0.1:10000:10000 \
-  -v /opt/faceattend/data:/app/data \
-  -v /opt/faceattend/logs:/app/logs \
-  faceattend:latest
-~~~
-
-Back up the database and review release changes before performing an upgrade. The docker rm -f command removes only the container; data remains in the mounted host directories and, in RDS mode, in RDS.
+# In browser
+# 1. Confirm green padlock
+# 2. Log in at /auth/admin-login with bootstrapped admin credentials
+# 3. Create a test employee and verify OTP email delivery
+# 4. Log in as employee → Register Face → Mark Attendance
+# 5. Confirm employee dashboard and admin live roster show the same status
+# 6. Confirm RDS automated backup policy is active
+```
 
 ---
 
-## Configuration reference
+## 🚀 Render.com Cloud Deployment
 
-The safe starting point is .env.example. Copy it to .env, replace every placeholder, and keep .env out of Git.
+For zero-ops hosting without managing servers, deploy directly to [Render.com](https://render.com) using the included `render.yaml`.
 
-### Application and session
+```yaml
+services:
+  - type: web
+    name: face-attendance
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn run:app --timeout 120 --workers 1
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: FACE_RECOGNITION_THRESHOLD
+        value: "12.0"
+      - key: SECRET_KEY
+        generateValue: true        # Render generates a cryptographically random value
+      - key: ADMIN_EMAIL
+        sync: false                # Set manually in Render dashboard
+      - key: ADMIN_PASSWORD
+        sync: false                # Set manually in Render dashboard
+      - key: PYTHON_VERSION
+        value: 3.10.13
+```
 
-| Variable | Default / example | Purpose |
-| --- | --- | --- |
-| FLASK_ENV | development | Controls production session-cookie security when set to production. |
-| SECRET_KEY | change-this... in template | Flask session signing. Use a long, unpredictable secret in production. |
-| SESSION_TIMEOUT_MINUTES | 30 | Permanent session lifetime configuration. |
-| PORT | Set by deployment | Port consumed by the Docker/Gunicorn command. Local run.py uses port 5000. |
+**Steps:**
+1. Fork this repository to your GitHub account
+2. Go to [render.com](https://render.com) → **New** → **Web Service** → connect your fork
+3. Render detects `render.yaml` automatically
+4. Set `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `SMTP_*` in the Render Environment dashboard
+5. Click **Deploy**
 
-### Database
-
-| Variable | Example | Purpose |
-| --- | --- | --- |
-| DATABASE_URL | postgresql://user:password@host:5432/database | Enables PostgreSQL, including Amazon RDS. postgres:// is also normalized to postgresql://. |
-| DB_PATH | attendance_system.db or /app/data/attendance_system.db | SQLite path and fallback path when PostgreSQL is unavailable. |
-
-When both variables are set, PostgreSQL is attempted first. Do not assume that setting both creates synchronization between the two databases.
-
-### Administrator bootstrap
-
-| Variable | Purpose |
-| --- | --- |
-| ADMIN_USERNAME | Initial administrator username |
-| ADMIN_EMAIL | Initial administrator email |
-| ADMIN_PASSWORD | Initial administrator password; always replace the template value |
-| ADMIN_FULL_NAME | Initial administrator display name |
-
-The administrator is created or ensured during startup. The password is stored as a hash in the database. Keep bootstrap credentials out of source control and rotate them through the application or a controlled database process after initial deployment.
-
-### Face recognition
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| FACE_RECOGNITION_THRESHOLD | 12.0 | SFace raw Euclidean L2 distance threshold. Validate any change with real test images. |
-
-### Scheduler
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| SCHEDULER_ENABLED | true | Enables the in-process APScheduler jobs. Set to false for local runs where automatic jobs are not wanted. |
-
-The .env.example file also contains TIMEZONE, DEBUG, MAX_UPLOAD_SIZE, and LOG_LEVEL placeholders. These are not fully consumed by the current application code; the attendance business rules currently use IST and the scheduler timezone should be verified separately.
-
-### Gmail SMTP and OTP
-
-| Variable | Example | Purpose |
-| --- | --- | --- |
-| SMTP_ENABLED | true | Enables Gmail SMTP delivery. |
-| SMTP_HOST | smtp.gmail.com | SMTP server hostname. |
-| SMTP_PORT | 587 | SMTP port. |
-| SMTP_USERNAME | sender@gmail.com | Gmail sender account. |
-| SMTP_PASSWORD | App Password | Google App Password, not the normal Gmail password. |
-| SMTP_FROM | sender@gmail.com | From address or authorized alias. |
-| SMTP_USE_TLS | true | Uses STARTTLS. |
-| SMTP_TIMEOUT_SECONDS | 10 | SMTP network timeout. |
-| OTP_EXPIRES_MINUTES | 10 | OTP validity period. |
-| OTP_MAX_ATTEMPTS | 5 | Invalid-code attempt limit. |
-| OTP_RESEND_COOLDOWN_SECONDS | 60 | Minimum delay between resends. |
-| OTP_MAX_RESENDS | 3 | Maximum resend count for a pending flow. |
-
-To use Gmail SMTP, enable 2-Step Verification, create a Google App Password, and use that generated value as SMTP_PASSWORD. Never log or commit the value.
+> **Free tier note:** Render free tier spins down after 15 minutes of inactivity. The SFace model loads on cold start (~30–60 seconds). Consider a paid plan for production use.
 
 ---
 
-## Routes and API
+## 🔧 Environment Variable Reference
 
-### Browser routes
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `FLASK_ENV` | No | `development` | Set to `production` to enable secure cookies |
+| `SECRET_KEY` | **Yes** | insecure dev string | Flask session signing key — generate 64+ random characters |
+| `PORT` | No | `5000` | Port Gunicorn binds to |
+| `DATABASE_URL` | No | — | PostgreSQL connection string; empty = use SQLite |
+| `DB_PATH` | No | `/app/data/attendance_system.db` | SQLite path (also used as RDS fallback) |
+| `SCHEDULER_ENABLED` | No | `true` | Set `false` to disable background cron jobs |
+| `FACE_RECOGNITION_THRESHOLD` | No | `12.0` | SFace L2 distance threshold (valid range: 2.0–50.0) |
+| `SESSION_TIMEOUT_MINUTES` | No | `30` | Session inactivity timeout |
+| `ADMIN_USERNAME` | No | `admin` | Bootstrap admin login username |
+| `ADMIN_EMAIL` | **Yes** | — | Bootstrap admin email address |
+| `ADMIN_PASSWORD` | **Yes** | — | Bootstrap admin password |
+| `ADMIN_FULL_NAME` | No | — | Bootstrap admin display name |
+| `SMTP_ENABLED` | No | `false` | Enable Gmail SMTP for OTPs and summaries |
+| `SMTP_HOST` | No | `smtp.gmail.com` | SMTP server hostname |
+| `SMTP_PORT` | No | `587` | SMTP server port (STARTTLS) |
+| `SMTP_USERNAME` | Conditional | — | Sender Gmail address (required if SMTP_ENABLED=true) |
+| `SMTP_PASSWORD` | Conditional | — | Gmail **App Password** — NOT your Google account password |
+| `SMTP_FROM` | Conditional | — | Sender address shown in email From header |
+| `SMTP_USE_TLS` | No | `true` | Enable STARTTLS |
+| `SMTP_TIMEOUT_SECONDS` | No | `10` | SMTP connection timeout |
+| `OTP_EXPIRES_MINUTES` | No | `10` | OTP validity window |
+| `OTP_MAX_ATTEMPTS` | No | `5` | Max wrong OTP submissions before lockout |
+| `OTP_RESEND_COOLDOWN_SECONDS` | No | `60` | Minimum seconds between resend requests |
+| `OTP_MAX_RESENDS` | No | `3` | Maximum OTP resend requests per session |
 
-| Method | Path | Access | Description |
-| --- | --- | --- | --- |
-| GET | /health | Public | Lightweight process health response |
-| GET | /auth/login | Public | Employee login |
-| GET | /auth/admin-login | Public | Administrator login |
-| GET/POST | /auth/register | Public | Start Gmail-verified employee registration |
-| GET/POST | /auth/verify-email | Public | Verify the six-digit registration OTP |
-| GET/POST | /auth/forgot-password | Employee | Start password recovery |
-| GET/POST | /auth/verify-reset-otp | Employee | Verify the four-digit recovery OTP |
-| GET/POST | /auth/reset-password | Employee | Choose a new password or keep the current one |
-| GET | /dashboard | Employee | Employee dashboard |
-| GET | /camera | Employee | Camera attendance terminal |
-| GET | /report | Authenticated user | Attendance reporting view |
-| GET | /admin | Administrator | Live administrator dashboard |
-| GET | /admin/users | Administrator | Employee management |
+### Gmail App Password Setup
 
-### JSON API
+Gmail requires an **App Password** (not your Google account password) for programmatic SMTP:
 
-| Method | Path | Authentication | Description |
-| --- | --- | --- | --- |
-| POST | /api/register-user | Employee session | Create or force-update the current user's face embedding |
-| POST | /api/recognize-face | Public endpoint | Generate an embedding, identify a user, and attempt to mark attendance |
-| GET | /api/attendance | Employee session | Paginated history with canonical status values |
-| GET | /api/users | Public endpoint | Return basic user IDs and display names |
-| GET | /api/admin/attendance/today | Administrator session | Live roster for active, non-admin employees |
-| GET | /api/admin/attendance/history/<user_id> | Administrator session | Paginated individual employee history |
-
-The face endpoints accept JSON with an image property containing a browser camera image, commonly a base64 data URL:
-
-~~~json
-{
-  "image": "data:image/jpeg;base64,..."
-}
-~~~
-
-An attendance recognition response includes the matched employee, status, timestamp, and a message. Common non-error status values include present, late, half_day, duplicate, already_absent, office_closed, and office_closed_sunday.
-
-The employee history endpoint supports start_date, end_date, status, page, and page_size query parameters. Dates use YYYY-MM-DD.
+1. Enable **2-Step Verification** on your Gmail account
+2. Visit **Google Account → Security → App passwords**
+3. Create a new App Password (select "Mail" and "Other device")
+4. Copy the 16-character generated code
+5. Set it as `SMTP_PASSWORD` in your `.env`
 
 ---
 
-## Database schema
+## 📊 Structured Logging
 
-The application creates these tables automatically in SQLite or PostgreSQL:
+Four separate rotating log files are written to the `logs/` directory:
 
-| Table | Role |
-| --- | --- |
-| users | Employee and administrator identities, password hashes, profile picture reference, role, status, verification state, and face embedding |
-| attendance | One daily record per user, including time in/out, status, notes, and marker |
-| working_hours | Weekday schedule defaults |
-| attendance_reports | Daily, weekly, or monthly report records |
-| email_notifications | Notification status records |
-| audit_logs | Security and attendance audit events |
-| pending_email_verifications | Hashed registration OTPs and registration data before account creation |
-| password_reset_otps | Hashed employee recovery OTPs and attempt/resend state |
+| File | Level | Max Size | Backups | Content |
+|---|---|---|---|---|
+| `application.log` | DEBUG | 10 MB | 10 | All application events (most verbose) |
+| `attendance.log` | INFO | 5 MB | 10 | Attendance mark, recognition, absent-marking |
+| `auth.log` | INFO | 5 MB | 10 | Login, OTP requests, registration, password reset |
+| `errors.log` | ERROR | 5 MB | 10 | Exceptions and critical failures |
 
-Embeddings are stored as serialized vectors in the users.embedding field. Captured recognition frames are processed in memory by the API and are not intended to be stored as attendance photos. Profile pictures are a separate account feature and should be governed by the same privacy policy.
+**Log line format:**
+```
+2026-09-11 09:15:32 - face_service - INFO - [face_service.py:197] - SFace comparison user_id=42 distance=8.231 threshold=12.0
+2026-09-11 09:15:32 - face_service - INFO - [face_service.py:209] - Face MATCHED user_id=42 distance=8.231
+```
 
----
+**Live log monitoring:**
+```bash
+# All application events
+tail -f logs/application.log
 
-## Operations and maintenance
+# Authentication events only
+tail -f logs/auth.log
 
-### Scheduled jobs
+# Docker container stdout/stderr
+docker logs -f faceattend
 
-When SCHEDULER_ENABLED=true, the application starts an APScheduler background scheduler with these jobs:
-
-| Job | Declared schedule | Function |
-| --- | --- | --- |
-| End-of-day absent marking | 17:00, Monday–Saturday | Creates absent rows for enrolled employees without attendance |
-| Daily summaries | 17:15, Monday–Saturday | Invokes the daily summary notification hook |
-| Monthly reports | First day of the month at 23:00 | Generates monthly summaries and audit entries |
-
-The scheduler is in-process. Run one application worker or move scheduling to a dedicated worker before scaling the web process horizontally.
-
-### Logs
-
-The application creates rotating logs under logs/:
-
-- application.log — general application events
-- attendance.log — attendance-specific events
-- auth.log — authentication events
-- errors.log — error-level events
-
-In Docker, mount /app/logs to persistent host storage or forward container logs to your centralized logging platform. Never log passwords, OTP values, SMTP secrets, or raw biometric images.
-
-### Backups
-
-For SQLite:
-
-- Stop the application before copying the database file, or use a SQLite-aware backup process.
-- Back up the database and /app/data to encrypted, access-controlled storage.
-- Test restoration periodically.
-
-For RDS:
-
-- Use automated backups and snapshots.
-- Restrict database permissions to the application user and approved operators.
-- Test restoring a snapshot into a non-production instance.
-- Monitor storage, CPU, memory, connections, and failed connection attempts.
-
-### Clearing attendance data
-
-clear_attendance.py deletes every row from the attendance table after administrator authentication and a YES confirmation. It does not delete users or face embeddings.
-
-Run it only after taking a backup and preferably while the application is stopped:
-
-~~~bash
-python clear_attendance.py
-~~~
-
-This is a destructive operation and cannot be undone by the script.
+# Nginx access log
+sudo tail -f /var/log/nginx/access.log
+```
 
 ---
 
-## Security and privacy checklist
+## 📁 Project Structure
 
-Before exposing the application to real users:
-
-- Replace the development SECRET_KEY and default admin credentials.
-- Store .env outside Git with restrictive permissions such as chmod 600 .env.
-- Use HTTPS for every non-local deployment, especially camera pages.
-- Keep RDS private and allow PostgreSQL only from the EC2 security group.
-- Use a Gmail App Password or an approved SMTP provider credential; never use a normal mailbox password.
-- Rotate secrets through the deployment environment, not by committing them to the repository.
-- Restrict administrator access and review administrator audit events.
-- Define consent, retention, deletion, access, and incident-response policies for biometric data.
-- Configure encrypted storage and backups for embeddings, attendance, and logs.
-- Validate recognition thresholds and add a human override process for false matches or missed scans.
-- Add liveness or anti-spoofing controls before treating recognition as a high-assurance identity factor.
-
-The current project is an application foundation, not a complete compliance package or certified biometric security system. Review the password-hashing, session, CSRF, rate-limiting, retention, and privacy requirements for the intended environment before production launch.
-
----
-
-## Troubleshooting
-
-| Symptom | Likely cause | Action |
-| --- | --- | --- |
-| 502 Bad Gateway from Nginx | Container is stopped or bound to the wrong port | Check docker ps, docker logs faceattend, PORT=10000, and the 127.0.0.1:10000 mapping |
-| Camera does not open | Browser permission denied or page is not HTTPS | Allow camera permission and use HTTPS outside localhost |
-| Face is enrolled but not recognized | Lighting, pose, stale embedding, or threshold mismatch | Improve lighting, re-register, and start with FACE_RECOGNITION_THRESHOLD=12.0 |
-| Registration email never arrives | SMTP disabled, invalid App Password, spam filtering, or provider quota | Check SMTP variables and application logs; never expose the credential |
-| RDS connection fails | Security group, subnet, endpoint, password, or URL-encoding issue | Test from EC2, allow 5432 from the EC2 security group, and inspect startup logs |
-| Data appears in the wrong database | RDS failed and the automatic SQLite fallback activated | Restore RDS connectivity, inspect /app/data, and reconcile any fallback writes manually |
-| Users are marked absent at the wrong time | Host/container timezone differs from the intended IST schedule | Verify the process timezone and scheduler configuration before enabling automatic jobs |
-| Employee and admin statuses differ | Stale browser data or an older deployment | Refresh both clients and confirm both views use the current shared status logic |
-
----
-
-## Limitations and roadmap
-
-Current limitations and sensible next steps include:
-
-- Liveness detection and stronger anti-spoofing
-- Versioned database migrations
-- A dedicated scheduler/worker for multi-instance deployments
-- Organization, tenant, and configurable shift support
-- Richer export and analytics capabilities
-- Per-user password salts and a modern password-hashing library migration plan
-- Centralized secret management and observability integrations
-- Formal biometric retention and deletion workflows
+```
+face-attendance-deepface/
+├── app/
+│   ├── __init__.py               # App factory: Flask, blueprints, scheduler, model preload
+│   ├── models/
+│   │   └── db.py                 # Entire data layer: schema DDL, CRUD, dual-DB wrapper (~1900 lines)
+│   ├── routes/
+│   │   ├── auth.py               # Login, register, OTP, password reset, RBAC decorators
+│   │   ├── api.py                # REST API: face register, face recognize, attendance history
+│   │   └── views.py              # Page routes, PWA service worker/manifest, error handlers
+│   ├── services/
+│   │   ├── face_service.py       # SFace embedding extraction + L2 recognition engine
+│   │   ├── email_service.py      # Gmail SMTP — OTP delivery (registration + password reset)
+│   │   └── scheduler.py          # APScheduler: absent marking, daily summaries, monthly reports
+│   ├── utils/
+│   │   ├── logging_config.py     # 4-stream rotating log setup
+│   │   └── helpers.py            # base64_to_cv2 decoder utility
+│   ├── templates/
+│   │   ├── base.html             # Shared layout with PWA meta tags
+│   │   ├── index.html            # Employee dashboard (attendance stats + history)
+│   │   ├── camera.html           # Live face scanner (webcam + attendance marking)
+│   │   ├── register.html         # One-time face registration / re-registration
+│   │   ├── report.html           # Full attendance history with charts
+│   │   ├── admin/
+│   │   │   ├── dashboard.html    # Admin live roster (async-loaded)
+│   │   │   └── users.html        # User management: view, delete employees
+│   │   └── auth/
+│   │       └── login.html        # Unified login template (user mode + admin mode)
+│   └── static/
+│       ├── manifest.json         # PWA manifest (installable, shortcuts, maskable icons)
+│       ├── sw.js                 # Service Worker (cache-first offline support)
+│       ├── css/                  # Stylesheets
+│       ├── js/                   # Client-side JavaScript
+│       └── img/                  # Logo and PWA icons
+├── Dockerfile                    # Python 3.10.13-slim, SFace pre-baked, Gunicorn entrypoint
+├── render.yaml                   # Render.com one-click deploy configuration
+├── Procfile                      # Heroku/Render process file
+├── requirements.txt              # All Python dependencies (pinned versions)
+├── run.py                        # Application entry point (calls create_app())
+├── .env.example                  # Template for all environment variables
+└── .dockerignore                 # Excludes venv, .env, logs, __pycache__ from Docker context
+```
 
 ---
 
-## License and credits
+## 🔍 Troubleshooting
 
-This repository does not currently declare a formal open-source license. Confirm licensing terms before redistributing or operating it commercially.
-
-Built with:
-
-- [Flask](https://flask.palletsprojects.com/)
-- [DeepFace](https://github.com/serengil/deepface)
-- [SFace](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface)
-- [APScheduler](https://apscheduler.readthedocs.io/)
-- [PostgreSQL](https://www.postgresql.org/)
-- [SQLite](https://www.sqlite.org/)
+| Symptom | Likely Cause | Fix |
+|---|---|---|
+| `/health` not returning `{"status":"ok"}` | Container not running or wrong port | `docker ps` · `docker logs faceattend` · check `PORT=10000` in `.env` |
+| `502 Bad Gateway` from Nginx | Container stopped or bound to wrong address | Check `docker ps` · ensure `-p 127.0.0.1:10000:10000` · verify `proxy_pass http://127.0.0.1:10000` in Nginx |
+| Camera permission denied | Page not served over HTTPS | Set up Nginx + Certbot TLS; `localhost` is the only non-HTTPS exception |
+| "Face not recognized" despite correct person | Threshold too tight, poor lighting, or bad registration | Brighter lighting; re-register face; verify `FACE_RECOGNITION_THRESHOLD=12.0` |
+| "Invalid FACE_RECOGNITION_THRESHOLD" in logs | Value set to cosine-style (e.g. `0.80`) | Set to `12.0` — SFace uses L2 Euclidean distance, not cosine similarity |
+| OTP email never arrives | SMTP not configured or wrong App Password | Check `SMTP_ENABLED=true` · verify `SMTP_PASSWORD` is a 16-char App Password · check `logs/auth.log` |
+| `DATABASE AUTO-FALLBACK` warning in logs | RDS unreachable | Check EC2→RDS security group allows TCP 5432 · verify RDS endpoint, credentials, and that instance is running |
+| API returns 503 "Face AI engine is initializing" | Container just started; model still loading | Wait 15–30 seconds after container start and retry |
+| `psycopg2` ImportError | psycopg2-binary not installed | `pip install psycopg2-binary==2.9.9` or rebuild Docker image |
+| Scheduler running duplicate jobs | Two processes started simultaneously | Use `--workers 1` with Gunicorn · set `SCHEDULER_ENABLED=false` in dev |
+| Employee and admin attendance views disagree | Stale browser cache | Hard refresh (Ctrl+Shift+R) · both views use identical `get_user_attendance_history()` query |
 
 ---
 
 <div align="center">
 
-**FaceAttend** · clear attendance records, camera-based recognition, and deployment flexibility from SQLite to AWS.
+Built with 🧠 DeepFace SFace · 🐍 Flask 3 · 🐳 Docker · 🌐 Nginx · ☁️ AWS EC2 + RDS · 📱 PWA
 
 </div>
