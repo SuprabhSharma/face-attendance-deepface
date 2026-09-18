@@ -516,6 +516,20 @@ def init_db(force=False):
     except Exception:
         pass
 
+    # ── Fix auto-absent rows that incorrectly have marked_by='face_recognition' ──
+    # These are rows with status='absent' and no time_in — they were inserted by the
+    # scheduler which previously omitted marked_by (defaulted to 'face_recognition').
+    try:
+        c.execute("""
+            UPDATE attendance
+            SET marked_by = 'auto_absent'
+            WHERE status = 'absent'
+              AND (time_in IS NULL OR time_in = '')
+              AND (marked_by = 'face_recognition' OR marked_by IS NULL OR marked_by = '')
+        """)
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()
     _db_is_initialized = True
@@ -1715,8 +1729,8 @@ def check_and_mark_absent(user_id, date):
     
     if not existing:
         c.execute('''
-            INSERT INTO attendance (user_id, date, status)
-            VALUES (?, ?, 'absent')
+            INSERT INTO attendance (user_id, date, status, marked_by)
+            VALUES (?, ?, 'absent', 'auto_absent')
         ''', (user_id, date))
         conn.commit()
         conn.close()
