@@ -967,6 +967,85 @@ curl https://attendance.your-domain.com/health
 # 6. Confirm RDS automated backup policy is active
 ```
 
+### Updating an Existing AWS EC2 Server
+
+Run these commands on the EC2 instance after pushing new changes to GitHub. This procedure keeps production secrets in `/opt/faceattend/.env` and keeps the database and logs in their existing host volumes.
+
+```bash
+cd /opt/faceattend/app-source
+
+# Confirm the server is on the expected branch and has no local changes
+git status
+git branch --show-current
+
+# Download and apply only fast-forward changes from GitHub
+git fetch origin
+git pull --ff-only origin main
+
+# Keep the currently running image available for rollback if needed
+docker tag faceattend:latest faceattend:previous
+
+# Rebuild the image so Python dependency and application changes are included
+docker build -t faceattend:latest .
+
+# Replace the running container; /opt/faceattend/data and /opt/faceattend/logs persist
+docker stop faceattend
+docker rm faceattend
+docker run -d \
+  --name faceattend \
+  --restart unless-stopped \
+  --env-file /opt/faceattend/.env \
+  -p 127.0.0.1:10000:10000 \
+  -v /opt/faceattend/data:/app/data \
+  -v /opt/faceattend/logs:/app/logs \
+  faceattend:latest
+
+# Verify the new container and application
+docker ps --filter name=faceattend
+curl http://127.0.0.1:10000/health
+docker logs --tail 100 faceattend
+```
+
+If `git status` reports local changes, stop and review them before pulling. If the new container fails, inspect `docker logs faceattend`, then restore the previous image by replacing `faceattend:latest` with `faceattend:previous` in the `docker run` command. Do not delete `/opt/faceattend/data` or `/opt/faceattend/logs` during an update.
+
+#### Fix GitHub `Permission denied (publickey)` on EC2
+
+The deployment script uses the repository's SSH remote (`git@github.com:...`). If GitHub rejects the key, the code pull failed and the script must not be treated as a successful deployment. Configure a read-only deploy key for the repository:
+
+```bash
+# Run on the EC2 instance as the ubuntu user
+ssh-keygen -t ed25519 -C "faceattend-ec2" -f ~/.ssh/id_ed25519_github
+cat ~/.ssh/id_ed25519_github.pub
+```
+
+Copy the printed public key into GitHub: **Repository → Settings → Deploy keys → Add deploy key**. Leave **Allow write access** disabled because the server only needs to pull code.
+
+Then configure and test the key:
+
+```bash
+cat >> ~/.ssh/config <<'EOF'
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/id_ed25519_github
+  IdentitiesOnly yes
+EOF
+chmod 600 ~/.ssh/config
+ssh-keyscan github.com >> ~/.ssh/known_hosts
+ssh -T git@github.com
+```
+
+After GitHub accepts the key, update the application:
+
+```bash
+cd /home/ubuntu/face-attendance-deepface
+git pull --ff-only origin main
+sudo bash /home/ubuntu/deploy-face-attendance.sh
+curl http://127.0.0.1:10000/health
+```
+
+The deployment script should use `set -e` or `set -euo pipefail` near its beginning so a failed `git pull` stops the deployment before Docker is rebuilt or restarted.
+
 ---
 
 ## 🚀 Render.com Cloud Deployment
@@ -1152,3 +1231,6 @@ face-attendance-deepface/
 Built with 🧠 DeepFace SFace · 🐍 Flask 3 · 🐳 Docker · 🌐 Nginx · ☁️ AWS EC2 + RDS · 📱 PWA
 
 </div>
+
+
+~/deploy-face-attendance.sh // command to redeploy the project on aws server after making changes
