@@ -116,7 +116,7 @@ def get_db_connection():
     If RDS is stopped, offline, or unreachable, it automatically and gracefully falls back
     to the local SQLite database so the project never stops working.
     """
-    global IS_POSTGRES
+    global DB_PATH, IS_POSTGRES
     if IS_POSTGRES and DATABASE_URL:
         try:
             conn = psycopg2.connect(DATABASE_URL, connect_timeout=3)
