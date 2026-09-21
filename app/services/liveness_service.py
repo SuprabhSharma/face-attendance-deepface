@@ -145,8 +145,8 @@ def _active_blink_fallback(frames_bgr):
 def check_liveness(image_bgr, session_frames=None):
     """Return (is_real, confidence, reason).
 
-    If the optional liveness model assets are missing, skip the gate to keep the
-    app working. When the models are available, the behavior remains fail-closed.
+    Liveness is required for recognition and registration. Missing model assets
+    or runtime support therefore reject the request instead of bypassing the gate.
     """
     if image_bgr is None:
         return False, 0.0, "no_image"
@@ -156,13 +156,13 @@ def check_liveness(image_bgr, session_frames=None):
         return False, 0.0, "no_face_detected"
 
     if not _SESSIONS:
-        logger.warning("Liveness models unavailable — skipping liveness gate to keep app functional")
-        return True, 1.0, "liveness_skipped"
+        logger.error("Liveness models unavailable; rejecting request")
+        return False, 0.0, "liveness_unavailable"
 
     score = _passive_liveness_score(image_bgr, bbox)
     if score is None:
-        logger.warning("Liveness model inference unavailable — skipping liveness gate")
-        return True, 1.0, "liveness_skipped"
+        logger.error("Liveness model inference unavailable; rejecting request")
+        return False, 0.0, "liveness_unavailable"
 
     if score >= REAL_THRESHOLD:
         return True, score, "passive_real"

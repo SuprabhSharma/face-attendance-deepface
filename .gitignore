@@ -23,8 +23,5 @@ Thumbs.db
 # DeepFace cache (important)
 .deepface/
 
-# Liveness model weights (download at runtime or keep outside repo)
-app/models_weights/
-
 # VS Code (optional)
 .vscode/
