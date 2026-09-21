@@ -38,10 +38,14 @@ def _face():
                 recognize_user as _rec,
                 check_duplicate_face as _dup,
             )
+            from app.services.liveness_service import check_liveness as _live
+            from app.services.anti_replay import is_suspected_replay as _replay
             _face_cache['b64'] = _b64
             _face_cache['emb'] = _emb
             _face_cache['rec'] = _rec
             _face_cache['dup'] = _dup
+            _face_cache['live'] = _live
+            _face_cache['replay'] = _replay
             _face_cache['ready'] = True
         except Exception as e:
             logger.warning(f"Face module loading: {e}")
@@ -79,6 +83,18 @@ def register():
         img = fc['b64'](image_b64)
         if img is None:
             return jsonify({'success': False, 'message': 'Invalid image format received from camera.'}), 400
+
+        burst_frames_b64 = data.get('burst_frames') or []
+        burst_frames = [fc['b64'](f) for f in burst_frames_b64]
+        burst_frames = [f for f in burst_frames if f is not None]
+
+        is_real, live_score, live_reason = fc['live'](img, session_frames=burst_frames)
+        if not is_real:
+            logger.info(f"Liveness rejected registration attempt: reason={live_reason} score={live_score:.3f}")
+            return jsonify({
+                'success': False,
+                'message': 'Liveness check failed — please register using your live face, not a photo.'
+            }), 400
 
         user_data = get_user_by_id(current_user.id)
         if not user_data:
@@ -151,6 +167,31 @@ def recognize():
         img = fc['b64'](image_b64)
         if img is None:
             return jsonify({'success': False, 'message': 'Invalid image format.'}), 400
+
+        replay_suspected = fc['replay'](image_b64.encode('utf-8', errors='ignore'))
+
+        burst_frames_b64 = data.get('burst_frames') or []
+        burst_frames = [fc['b64'](f) for f in burst_frames_b64]
+        burst_frames = [f for f in burst_frames if f is not None]
+
+        is_real, live_score, live_reason = fc['live'](img, session_frames=burst_frames)
+        if not is_real:
+            logger.info(f"Liveness rejected recognize attempt: reason={live_reason} score={live_score:.3f}")
+            return jsonify({
+                'success': True,
+                'found': False,
+                'code': 'liveness_failed',
+                'message': 'Liveness check failed — please use your live face, not a photo or screen.'
+            }), 200
+
+        if replay_suspected and live_score < 0.9:
+            logger.warning(f"Recognize attempt flagged: replay_suspected + moderate liveness score={live_score:.3f}")
+            return jsonify({
+                'success': True,
+                'found': False,
+                'code': 'liveness_failed',
+                'message': 'Please move slightly and try again.'
+            }), 200
 
         embedding, err = fc['emb'](img)
         if err:

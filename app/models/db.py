@@ -15,6 +15,8 @@ if DATABASE_URL.startswith('postgres://'):
 IS_POSTGRES = bool(DATABASE_URL)
 
 _DEFAULT_DB_PATH = '/app/data/attendance_system.db'
+if os.name == 'nt':
+    _DEFAULT_DB_PATH = os.path.join(os.getcwd(), 'attendance_system.db')
 DB_PATH = os.path.abspath(os.getenv('DB_PATH', _DEFAULT_DB_PATH))
 
 # Optional psycopg2 import for PostgreSQL
@@ -134,7 +136,14 @@ def get_db_connection():
 
     parent = os.path.dirname(DB_PATH)
     if parent:
-        os.makedirs(parent, exist_ok=True)
+        try:
+            os.makedirs(parent, exist_ok=True)
+        except OSError:
+            fallback_db = os.path.abspath(os.path.join(os.getcwd(), 'attendance_system.db'))
+            if fallback_db != DB_PATH:
+                DB_PATH = fallback_db
+                parent = os.path.dirname(DB_PATH)
+                os.makedirs(parent, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
@@ -926,6 +935,11 @@ def delete_user_completely(user_id, admin_id=None):
         c.execute('DELETE FROM users WHERE id = ?', (user_id,))
         conn.commit()
         conn.close()
+        try:
+            from app.services.face_service import invalidate_embedding_cache
+            invalidate_embedding_cache()
+        except Exception:
+            pass
 
         # 3. Log audit event
         try:
@@ -966,6 +980,11 @@ def update_user_embedding(user_id, embedding_vector):
     c.execute('UPDATE users SET embedding = ? WHERE id = ?', (embedding_str, user_id))
     conn.commit()
     conn.close()
+    try:
+        from app.services.face_service import invalidate_embedding_cache
+        invalidate_embedding_cache()
+    except Exception:
+        pass
 
 
 def get_all_users():

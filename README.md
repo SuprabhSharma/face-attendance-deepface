@@ -44,6 +44,24 @@ Built on DeepFace SFace · Dual-DB (PostgreSQL / SQLite) · PWA-installable · N
 18. [Project Structure](#-project-structure)
 19. [Troubleshooting](#-troubleshooting)
 
+### Optional: Passive Liveness Models
+
+The app includes a passive liveness gate in [app/services/liveness_service.py](app/services/liveness_service.py), but the ONNX model files are intentionally kept out of Git because they are large binary assets.
+
+Place these files in the project directory before enabling live anti-spoofing:
+
+```bash
+mkdir -p app/models_weights
+# Download these exact files:
+# https://raw.githubusercontent.com/Vikram30069/smart-attendance-using-face-recognition/main/attendance/anti_spoofing_models/MiniFASNetV2.onnx
+# https://raw.githubusercontent.com/Vikram30069/smart-attendance-using-face-recognition/main/attendance/anti_spoofing_models/MiniFASNetV1SE.onnx
+# then rename them to:
+# app/models_weights/2.7_80x80_MiniFASNetV2.onnx
+# app/models_weights/4_0_0_80x80_MiniFASNetV1SE.onnx
+```
+
+The service will run safely without these files, but the liveness check is skipped until the models are available.
+
 ---
 
 ## 🎯 What is FaceAttend?

@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import threading
 
 import cv2
 import numpy as np
@@ -22,8 +23,45 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────
 MODEL_NAME = "SFace"
 DEFAULT_MATCH_THRESHOLD = 12.0   # raw Euclidean L2 distance
+DUPLICATE_MATCH_THRESHOLD = 10.0  # stricter duplicate threshold to avoid false-accepting duplicates
 DETECTOR_BACKEND = "opencv"      # fastest detector
 MIN_FACE_AREA = 40 * 40          # reject tiny/false detections
+
+_embedding_cache_lock = threading.Lock()
+_embedding_cache = {"ids": None, "names": None, "matrix": None}
+
+
+def _rebuild_embedding_cache():
+    """Cache all enrolled embeddings in memory for fast vectorized matching."""
+    from app.models.db import get_all_users
+
+    ids, names, vectors = [], [], []
+    for user in get_all_users():
+        stored = _load_stored_embedding(user.get("embedding"))
+        if stored is None:
+            continue
+        ids.append(user["id"])
+        names.append(user.get("full_name") or user.get("username"))
+        vectors.append(stored)
+
+    with _embedding_cache_lock:
+        _embedding_cache["ids"] = ids
+        _embedding_cache["names"] = names
+        _embedding_cache["matrix"] = (
+            np.stack(vectors).astype(np.float32) if vectors else np.zeros((0, 128), dtype=np.float32)
+        )
+    logger.info("Embedding cache rebuilt: %d enrolled faces", len(ids))
+
+
+def invalidate_embedding_cache():
+    """Call after registration updates or user deletions so recognition stays current."""
+    _rebuild_embedding_cache()
+
+
+try:
+    _rebuild_embedding_cache()
+except Exception:
+    logger.exception("Initial embedding cache build failed — will build lazily on first use")
 
 
 def get_match_threshold():
@@ -168,51 +206,45 @@ def recognize_user(embedding, threshold=None, exclude_user_id=None):
         return None, None
 
     threshold = get_match_threshold() if threshold is None else threshold
-    query = np.asarray(embedding, dtype=np.float32).reshape(-1)
-
-    best_match = None
-    best_distance = float("inf")
-    compared = 0
+    query = np.asarray(embedding, dtype=np.float32).reshape(1, -1)
 
     try:
-        for user in get_all_users():
-            if exclude_user_id is not None and user.get("id") == exclude_user_id:
-                continue
+        with _embedding_cache_lock:
+            ids = list(_embedding_cache["ids"]) if _embedding_cache["ids"] is not None else []
+            names = list(_embedding_cache["names"]) if _embedding_cache["names"] is not None else []
+            matrix = _embedding_cache["matrix"]
 
-            stored = _load_stored_embedding(user.get("embedding"))
-            if stored is None:
-                continue
+        if matrix is None or len(ids) == 0:
+            _rebuild_embedding_cache()
+            with _embedding_cache_lock:
+                ids = list(_embedding_cache["ids"]) if _embedding_cache["ids"] is not None else []
+                names = list(_embedding_cache["names"]) if _embedding_cache["names"] is not None else []
+                matrix = _embedding_cache["matrix"]
+            if matrix is None or len(ids) == 0:
+                logger.info("Face NOT matched — no valid enrolled embeddings to compare")
+                return None, None
 
-            if stored.size != query.size:
-                logger.warning(
-                    "Skipping user_id=%s — embedding dim %s != query dim %s",
-                    user.get("id"), stored.size, query.size,
-                )
-                continue
-
-            distance = float(np.linalg.norm(stored - query))
-            compared += 1
-            logger.info(
-                "SFace comparison user_id=%s distance=%.3f threshold=%.1f",
-                user["id"], distance, threshold,
-            )
-
-            if distance < best_distance:
-                best_distance = distance
-                best_match = user
-
-        if compared == 0:
-            logger.info("Face NOT matched — no valid enrolled embeddings to compare")
+        if matrix.shape[1] != query.shape[1]:
+            logger.warning("Embedding dim mismatch: cache=%s query=%s", matrix.shape[1], query.shape[1])
             return None, None
 
-        if best_match and best_distance <= threshold:
-            logger.info("Face MATCHED user_id=%s distance=%.3f", best_match["id"], best_distance)
-            return best_match["id"], best_match.get("full_name") or best_match.get("username")
+        if exclude_user_id is not None:
+            mask = np.array([uid != exclude_user_id for uid in ids], dtype=bool)
+            if not mask.any():
+                return None, None
+            distances = np.linalg.norm(matrix - query, axis=1)
+            distances = np.where(mask, distances, np.inf)
+        else:
+            distances = np.linalg.norm(matrix - query, axis=1)
 
-        logger.info(
-            "Face NOT matched — best_distance=%.3f threshold=%.1f (compared %d faces)",
-            best_distance, threshold, compared,
-        )
+        best_idx = int(np.argmin(distances))
+        best_distance = float(distances[best_idx])
+
+        if best_distance <= threshold:
+            logger.info("Face MATCHED user_id=%s distance=%.3f", ids[best_idx], best_distance)
+            return ids[best_idx], names[best_idx]
+
+        logger.info("Face NOT matched — best_distance=%.3f threshold=%.1f", best_distance, threshold)
         return None, None
 
     except Exception:
@@ -222,6 +254,7 @@ def recognize_user(embedding, threshold=None, exclude_user_id=None):
 
 def check_duplicate_face(embedding, threshold=None, exclude_user_id=None):
     """Return (True, user_id, name) if this face matches an enrolled user."""
+    threshold = DUPLICATE_MATCH_THRESHOLD if threshold is None else threshold
     matched_user_id, name = recognize_user(embedding, threshold, exclude_user_id)
     if matched_user_id is not None:
         return True, matched_user_id, name
