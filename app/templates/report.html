@@ -372,6 +372,9 @@
       return true;
     });
 
+    // Ensure newest/recent attendance dates are always at the top
+    filtered.sort((a, b) => b.date.localeCompare(a.date));
+
     page = 1;
     render();
   }

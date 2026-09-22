@@ -1374,6 +1374,9 @@ def get_user_attendance_history(user_id, start_date=None, end_date=None,
             })
         cursor_date += timedelta(days=1)
 
+    # Sort in descending order (most recent attendance date at the top)
+    all_records.sort(key=lambda r: r['date'], reverse=True)
+
     # Summary counts (computed before optional status filter)
     summary = {'present': 0, 'late': 0, 'half_day': 0, 'absent': 0, 'pending': 0}
     for record in all_records:
@@ -1672,6 +1675,9 @@ def get_admin_user_attendance_history(user_id, start_date=None, end_date=None,
                 'marked_by': source.get('marked_by') if source else 'auto_absent',
             })
         cursor_date += timedelta(days=1)
+
+    # Sort in descending order (most recent attendance date at the top)
+    all_records.sort(key=lambda r: r['date'], reverse=True)
 
     summary = {'present': 0, 'late': 0, 'half_day': 0, 'absent': 0, 'pending': 0}
     for record in all_records:

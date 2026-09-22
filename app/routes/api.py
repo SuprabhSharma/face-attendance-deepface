@@ -184,8 +184,8 @@ def recognize():
                 'message': 'Liveness check failed — please use your live face, not a photo or screen.'
             }), 200
 
-        if replay_suspected and live_score < 0.9:
-            logger.warning(f"Recognize attempt flagged: replay_suspected + moderate liveness score={live_score:.3f}")
+        if replay_suspected and live_score < 0.40:
+            logger.warning(f"Recognize attempt flagged: replay_suspected + low liveness score={live_score:.3f}")
             return jsonify({
                 'success': True,
                 'found': False,

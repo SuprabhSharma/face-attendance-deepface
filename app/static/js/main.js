@@ -98,8 +98,8 @@ function captureBase64(videoElementId, canvasElementId) {
     }
     
     // Downscale canvas size for fast network transfer & ultra-fast AI inference
-    const MAX_WIDTH = 480;
-    const MAX_HEIGHT = 360;
+    const MAX_WIDTH = 640;
+    const MAX_HEIGHT = 480;
     
     let w = video.videoWidth || 640;
     let h = video.videoHeight || 480;
@@ -119,8 +119,8 @@ function captureBase64(videoElementId, canvasElementId) {
     // Draw scaled frame
     context.drawImage(video, 0, 0, w, h);
     
-    // Convert to compressed JPEG (0.75 quality = ~30KB instead of 1.5MB!)
-    return canvas.toDataURL('image/jpeg', 0.75);
+    // Convert to compressed JPEG (0.85 quality provides crisp textures without artifacts ~45KB)
+    return canvas.toDataURL('image/jpeg', 0.85);
 }
 
 /**
