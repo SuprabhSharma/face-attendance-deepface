@@ -29,26 +29,21 @@ Built on DeepFace SFace · Dual-DB (PostgreSQL / SQLite) · PWA-installable · N
 3. [Technology Stack](#-technology-stack)
 4. [Core Feature Set](#-core-feature-set)
 5. [AI Engine: How Face Recognition Works](#-ai-engine-how-face-recognition-works)
-6. [Database Architecture](#-database-architecture)
-7. [API Reference](#-api-reference)
-8. [Security Model](#-security-model)
-9. [Automated Scheduling System](#-automated-scheduling-system)
-10. [PWA — Install on Any Device](#-pwa--install-on-any-device)
-11. [Nginx — Production Reverse Proxy](#-nginx--production-reverse-proxy)
-12. [Local Development Setup](#-local-development-setup)
-13. [Docker Deployment](#-docker-deployment)
-14. [AWS EC2 + RDS Production Deployment](#-aws-ec2--rds-production-deployment)
-15. [Render.com Cloud Deployment](#-rendercom-cloud-deployment)
-16. [Environment Variable Reference](#-environment-variable-reference)
-17. [Structured Logging](#-structured-logging)
-18. [Project Structure](#-project-structure)
-19. [Troubleshooting](#-troubleshooting)
-
-### Passive Liveness Models
-
-Passive liveness detection is included and required for registration and attendance recognition. The two MiniFASNet ONNX model files are stored in `app/models_weights/` and are copied into Docker deployments with the application. `onnxruntime` is installed from `requirements.txt`.
-
-If either model or the runtime is unavailable, the request is rejected rather than allowing recognition to bypass the liveness check.
+6. [Liveness Detection & Anti-Spoofing Architecture](#-liveness-detection--anti-spoofing-architecture)
+7. [Database Architecture](#-database-architecture)
+8. [API Reference](#-api-reference)
+9. [Security Model](#-security-model)
+10. [Automated Scheduling System](#-automated-scheduling-system)
+11. [PWA — Install on Any Device](#-pwa--install-on-any-device)
+12. [Nginx — Production Reverse Proxy](#-nginx--production-reverse-proxy)
+13. [Local Development Setup](#-local-development-setup)
+14. [Docker Deployment](#-docker-deployment)
+15. [AWS EC2 + RDS Production Deployment](#-aws-ec2--rds-production-deployment)
+16. [Render.com Cloud Deployment](#-rendercom-cloud-deployment)
+17. [Environment Variable Reference](#-environment-variable-reference)
+18. [Structured Logging](#-structured-logging)
+19. [Project Structure](#-project-structure)
+20. [Troubleshooting](#-troubleshooting)
 
 ---
 
@@ -303,6 +298,78 @@ If `FACE_RECOGNITION_THRESHOLD` is set to a value `< 2.0` (cosine-style, e.g. `0
 The SFace model is:
 - **Pre-downloaded at Docker build time** (`DeepFace.build_model('SFace')` in Dockerfile) — no delay on first user scan
 - **Pre-loaded into memory on app startup** via a background daemon thread — available immediately when the first API call arrives
+
+---
+
+## 🛡️ Liveness Detection & Anti-Spoofing Architecture
+
+To prevent biometric spoofing (e.g., holding up a smartphone screen, displaying a printed photograph, or replaying video streams), FaceAttend incorporates a multi-tiered **Passive + Active Liveness Engine** powered by **MiniFASNet ONNX models** and OpenCV computer vision pipelines.
+
+Attendance registration and verification are gated by this check: a live subject must be confirmed before face embedding extraction and matching are executed.
+
+```
+                  Webcam Frame Captured (640x480 @ 85% JPEG)
+                                      │
+                                      ▼
+             ┌──────────────────────────────────────────────────┐
+             │ Layer 1: Anti-Replay Cryptographic Filter         │
+             │   - SHA-256 Frame Fingerprint Hashing            │
+             │   - Replay window: 30s sliding cache             │
+             └────────────────────────┬─────────────────────────┘
+                                      │
+                                      ▼
+             ┌──────────────────────────────────────────────────┐
+             │ Layer 2: Multi-Pass Face Geometry & Alignment    │
+             │   - Standard Haar Cascade (minNeighbors=4)       │
+             │   - Relaxed Low-Light Fallback (minNeighbors=2)  │
+             │   - Center-Bounding Box Spatial Heuristic        │
+             └────────────────────────┬─────────────────────────┘
+                                      │
+                                      ▼
+             ┌──────────────────────────────────────────────────┐
+             │ Layer 3: Dual MiniFASNet Deep Ensemble           │
+             │   - 2.7x Scale (MiniFASNetV2): Skin Texture/Depth│
+             │   - 4.0x Scale (MiniFASNetV1SE): Screen/Borders  │
+             │   - Softmax Real-Class Probability (Index 2)     │
+             └────────────────────────┬─────────────────────────┘
+                                      │
+                        ┌─────────────┴─────────────┐
+                        │                           │
+                 Score ≥ 0.40                  Score ≤ 0.20
+                        │                           │
+                        ▼                           ▼
+                 ✅ PASS: Live Face           ❌ REJECT: Spoof Detected
+            (Proceed to SFace Matching)    ("Use live face, not photo/screen")
+```
+
+---
+
+### Factors on Which Liveness Detection Depends
+
+The liveness evaluation depends on six key physical, optical, and computational factors:
+
+| Factor | Mechanism / Component | What It Detects / Prevents |
+|---|---|---|
+| **1. Micro Skin Texture & Light Diffusion** | `MiniFASNetV2.onnx` (2.7× face crop scale) | Examines natural facial skin pores, organic light reflection, micro-shadows, and 3D facial depth. Differentiates biological skin from paper print grain, glossy paper sheen, and flat digital displays. |
+| **2. Macro Context & Screen Border Detection** | `MiniFASNetV1SE.onnx` (4.0× context scale) | Inspects the wide surrounding area around the face. Detects smartphone bezels, tablet/monitor frames, physical photograph paper edges, or anomalous backgrounds indicative of presentation attacks. |
+| **3. Face Alignment & Detection Robustness** | Multi-pass OpenCV Haar Cascade (`scaleFactor=1.1`, fallback `1.05`) | Detects face region even in varied lighting, tilted head postures, or distant stances. Includes a center-region spatial heuristic aligned with the UI scanning guide to eliminate false detection drops. |
+| **4. Optical Resolution & Image Fidelity** | Frontend 640×480 @ 0.85 JPEG compression | High-resolution frame transmission preserves essential fine-grain texture gradients without introducing blocky JPEG macroblock compression artifacts that could degrade AI classification. |
+| **5. Anti-Replay Frame Hashing** | SHA-256 fingerprinting (`FRAME_HASH_WINDOW_SECONDS = 30`) | Prevents malicious attackers from capturing an authorized user's live frame once and submitting it repeatedly via script or automated API replay bursts. |
+| **6. Active Blink Fallback (Session Burst Mode)** | OpenCV Eye Cascade (`haarcascade_eye.xml`) | Optional multi-frame temporal check for marginal confidence cases. Analyzes sequential eye state (`open → closed → open`) to confirm natural biological blinking. |
+
+---
+
+### Model Classification & Confidence Thresholds
+
+The MiniFASNet ONNX models output 3 distinct probability classes via softmax:
+- **Class 0**: Background / Environmental noise
+- **Class 1**: Spoof / Presentation Attack (Photo, Screen, Cutout)
+- **Class 2**: Real Live Human Face
+
+**Calibrated Decision Boundary:**
+- **$\text{Score} \ge 0.40$**: `passive_real` — Instant pass for live users across diverse lighting environments.
+- **$\text{Score} \le 0.20$**: `passive_fake` — Immediate rejection for presentation attacks.
+- **$0.25 \le \text{Score} < 0.40$**: `passive_marginal_pass` — Soft-pass policy enabling seamless single-glance attendance under challenging webcam conditions without compromising spoof security.
 
 ---
 
