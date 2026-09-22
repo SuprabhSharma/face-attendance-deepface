@@ -23,7 +23,7 @@ MODEL_CONFIGS = [
     {"file": "2.7_80x80_MiniFASNetV2.onnx", "scale": 2.7, "weight": 1.0},
     {"file": "4_0_0_80x80_MiniFASNetV1SE.onnx", "scale": 4.0, "weight": 1.0},
 ]
-REAL_CLASS_INDEX = 1
+REAL_CLASS_INDEX = 2  # MiniFASNet 3-class output: 0=background, 1=spoof/attack, 2=real
 REAL_THRESHOLD = 0.75
 FAKE_THRESHOLD = 0.35
 
